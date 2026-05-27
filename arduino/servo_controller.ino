@@ -6,10 +6,8 @@
 // I2C адрес Arduino (слушает команды от ESP32)
 #define ARDUINO_I2C_ADDR 8
 
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
-
 // PCA9685 объект для управления серво
-Adafruit_PCA9685 pwm = Adafruit_PCA9685();
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 // Адреса пальцев на PCA9685 (каналы 0-4)
 #define THUMB 0      // Большой палец
