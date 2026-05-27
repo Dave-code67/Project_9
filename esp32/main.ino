@@ -61,7 +61,7 @@ bool isValidFingerConfig(int fingers[5]) {
     return false;
   }
   
-  // ЗАПРЕЩЁН��ОЕ ПОЛОЖЕНИЕ 2: Отогнуты ТОЛЬКО средний + большой (остальные согнуты)
+  // ЗАПРЕЩЁННОЕ ПОЛОЖЕНИЕ 2: Отогнуты ТОЛЬКО средний + большой (остальные согнуты)
   if (middle > 90 && thumb > 90 && index < 90 && ring < 90 && pinky < 90) {
     return false;
   }
@@ -73,7 +73,7 @@ bool isValidFingerConfig(int fingers[5]) {
  * Проверка возможности изменить палец в режимах 0 (конструктор) и 3 (голос)
  * Возвращает: true если движение допустимо, false если нарушает защиту
  */
-bool canMoveFingerSafeMode(int fingerIdx, int targetAngle, int currentState[5]) {
+bool isValidConstructorMove(int fingerIdx, int targetAngle, int currentState[5]) {
   int thumb = currentState[0];
   int index = currentState[1];
   int middle = currentState[2];
@@ -90,7 +90,7 @@ bool canMoveFingerSafeMode(int fingerIdx, int targetAngle, int currentState[5]) 
 }
 
 /**
- * Дополнительная проверка для режима конструктора (режим 0)
+ * Дополнительная проверка для режима конструктора (режим 0) и голоса (режим 3)
  * Правило 1: При полностью сжатой руке (все 180°)
  *   - Нельзя отогнуть ТОЛЬКО средний
  *   - Нельзя отогнуть ТОЛЬКО средний + большой
@@ -177,7 +177,7 @@ bool isValidConstructorMove(int fingerIdx, int targetAngle, int currentState[5])
   return true;
 }
 
-// ===== ВЕunderlying HTML ИНТЕРФЕЙС =====
+// ===== ВЕБ ИНТЕРФЕЙС =====
 void handleRoot() {
   String html = "<!DOCTYPE html><html lang='ru'><head><meta charset='UTF-8'>";
   html += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
@@ -255,7 +255,18 @@ void handleRoot() {
   
   // БИО-ЭМГ (режим 1)
   html += "<div id='bioMode' class='disabled-ui' style='display: none;'>";
-  html += "<p style='text-align: center; color: #888; padding: 40px 0;'>БИО-ЭМГ ИНТЕРФЕЙС (в разработке)</p>";
+  html += "<div class='constructor-zone' id='bioQueue'>";
+  html += "<div id='bioPlaceholder' style='color: #333; width: 100%; margin-top: 35px; font-size: 10px; letter-spacing: 2px; text-align: center;'>БИО-ЭМГ АКТИВЕН (свободное управление)</div>";
+  html += "</div>";
+  html += "<div class='controls'>";
+  html += "<label>ВЫБОР ПРИВОДА: <span id='bio-f-val' class='val-display'>БОЛЬШОЙ ПАЛЕЦ</span></label>";
+  html += "<input type='range' id='bio-f-slider' min='0' max='4' step='1' value='0' oninput='updateBioF()'>";
+  html += "</div>";
+  html += "<div class='controls'>";
+  html += "<label>УГОЛ: <span id='bio-a-val' class='val-display'>0°</span></label>";
+  html += "<input type='range' id='bio-a-slider' min='0' max='180' step='5' value='0' oninput='updateBioA()'>";
+  html += "<button class='btn-add' onclick='sendBioCommand()'>ПРИМЕНИТЬ</button>";
+  html += "</div>";
   html += "</div>";
   
   // Автохват (режим 2)
@@ -270,6 +281,7 @@ void handleRoot() {
   html += "let program = []; let isBusy = false; let currentMode = 0;";
   html += "let currentFingers = [0, 0, 0, 0, 0];";
   html += "const fingers = ['БОЛЬШОЙ ПАЛЕЦ', 'УКАЗАТЕЛЬНЫЙ', 'СРЕДНИЙ ПАЛЕЦ', 'БЕЗЫМЯННЫЙ', 'МИЗИНЕЦ', 'ВСЯ КИСТЬ'];";
+  html += "const fingersShort = ['БОЛЬШОЙ', 'УКАЗАТЕЛЬНЫЙ', 'СРЕДНИЙ', 'БЕЗЫМЯННЫЙ', 'МИЗИНЕЦ'];";
   html += "const audioCtx = new (window.AudioContext || window.webkitAudioContext)();";
   
   html += "function playSound(type) {";
@@ -284,6 +296,8 @@ void handleRoot() {
   html += "function updateF() { playSound('click'); document.getElementById('f-val').innerText = fingers[document.getElementById('f-slider').value]; }";
   html += "function updateP() { playSound('click'); document.getElementById('p-val').innerText = document.getElementById('p-slider').value + '°'; }";
   html += "function updateW() { playSound('click'); document.getElementById('w-val').innerText = document.getElementById('w-slider').value + ' СЕК'; }";
+  html += "function updateBioF() { playSound('click'); document.getElementById('bio-f-val').innerText = fingersShort[document.getElementById('bio-f-slider').value]; }";
+  html += "function updateBioA() { playSound('click'); document.getElementById('bio-a-val').innerText = document.getElementById('bio-a-slider').value + '°'; }";
   
   html += "function switchMode(mode) {";
   html += "  currentMode = parseInt(mode);";
@@ -329,6 +343,13 @@ void handleRoot() {
   html += "  el.classList.add('show');";
   html += "  if(isError) playSound('error');";
   html += "  setTimeout(() => el.classList.remove('show'), 3000);";
+  html += "}";
+  
+  html += "function sendBioCommand() {";
+  html += "  playSound('click');";
+  html += "  let f = parseInt(document.getElementById('bio-f-slider').value);";
+  html += "  let a = parseInt(document.getElementById('bio-a-slider').value);";
+  html += "  fetch(`/execute?f=${f}&a=${a}`);";
   html += "}";
   
   html += "async function runAlgorithm() {";
@@ -420,7 +441,6 @@ void handleExecute() {
   }
 
   // ===== ЛОГИКА ЗАЩИТЫ В ЗАВИСИМОСТИ ОТ РЕЖИМА =====
-  bool isAllowed = true;
   
   if (currentMode == 0 || currentMode == 3) {
     // Режим конструктора (0) и голосовой (3) - ПОЛНАЯ ЗАЩИТА
@@ -439,22 +459,9 @@ void handleExecute() {
       return;
     }
     
-  } else if (currentMode == 1) {
-    // БИО-ЭМГ (режим 1) - ПОЛНАЯ ЗАЩИТА (как и конструктор)
-    
-    if (!isValidFingerConfig(tempFingers)) {
-      server.send(200, "text/plain", "ERROR: Forbidden position");
-      return;
-    }
-    
-    if (!isValidConstructorMove(f, a, currentFingers)) {
-      server.send(200, "text/plain", "ERROR: Invalid move (safety)");
-      return;
-    }
-    
-  } else if (currentMode == 2) {
-    // Автохват (режим 2) - БЕЗ ОГРАНИЧЕНИЙ
-    isAllowed = true;
+  } else if (currentMode == 1 || currentMode == 2) {
+    // БИО-ЭМГ (режим 1) и Автохват (режим 2) - БЕЗ ОГРАНИЧЕНИЙ
+    // Полная свобода движений
   }
 
   // Если все проверки пройдены
