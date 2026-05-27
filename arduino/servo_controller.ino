@@ -1,10 +1,12 @@
 #include <Wire.h>
-#include <Adafruit_PCA9685.h>
+#include <Adafruit_PWMServoDriver.h> 
 
 // ========== КОНФИГУРАЦИЯ ==========
 
 // I2C адрес Arduino (слушает команды от ESP32)
 #define ARDUINO_I2C_ADDR 8
+
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 // PCA9685 объект для управления серво
 Adafruit_PCA9685 pwm = Adafruit_PCA9685();
