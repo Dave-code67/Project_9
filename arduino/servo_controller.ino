@@ -5,14 +5,14 @@
 
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
-#define THUMB 0      // Большой палец
-#define INDEX 1      // Указательный
-#define MIDDLE 2     // Средний
-#define RING 3       // Безымянный
-#define PINKY 4      // Мизинец
+#define THUMB 0
+#define INDEX 1
+#define MIDDLE 2
+#define RING 3
+#define PINKY 4
 
-#define SERVO_MIN 150   // 0 градусов (разогнут)
-#define SERVO_MAX 600   // 180 градусов (согнут)
+#define SERVO_MIN 150
+#define SERVO_MAX 600
 
 uint8_t fingerPosition[5] = {0, 0, 0, 0, 0};
 
