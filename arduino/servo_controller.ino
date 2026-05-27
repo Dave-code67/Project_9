@@ -1,5 +1,5 @@
 #include <Wire.h>
-#include <Adafruit_PWMServoDriver.h> 
+#include <Adafruit_PWMServoDriver.h>
 
 #define ARDUINO_I2C_ADDR 8
 
