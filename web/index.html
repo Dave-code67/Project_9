@@ -604,6 +604,25 @@
             }, 2000);
         };
     }
+    async function loadCurrentMode() {
+    try {
+        const response = await fetch('/get_mode');
+
+        if (!response.ok) {
+            throw new Error("Ошибка получения режима");
+        }
+
+        const mode = parseInt(await response.text());
+
+        currentMode = mode;
+        activateMode(mode);
+
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+window.addEventListener('load', loadCurrentMode);
 </script>
 </body>
 </html>
