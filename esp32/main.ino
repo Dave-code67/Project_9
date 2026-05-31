@@ -101,7 +101,7 @@ void handleRoot() {
   html += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
   html += "<title>InMoov i2 OS - Hotline Cyberpunk</title>";
   html += "<style>";
-  html += "@import url('https://googleapis.com');";
+  html += "@import url('https://fonts.googleapis.com/css2?family=Courier+Prime&display=swap');";
   html += ":root { --hl-pink: #ff007f; --hl-cyan: #00ffff; --hl-green: #39ff14; --hl-purple: #bd00ff; --bg-dark: #05010a; --card-bg: rgba(26, 0, 51, 0.85); }";
   html += "* { box-sizing: border-box; margin: 0; padding: 0; }";
   html += "body { background-color: var(--bg-dark); color: #e2e8f0; font-family: 'Courier Prime', monospace, sans-serif; text-align: center; padding: 40px 20px; min-height: 100vh; position: relative; overflow-x: hidden; }";
