@@ -278,20 +278,7 @@ void handleRoot() {
   html += "}";
 
   html += "function clearQueue() { playSound('click'); program = []; document.getElementById('queue').innerHTML = '<div id=\"placeholder\" style=\"color:#445577; width:100%; margin-top:25px; font-size:0.75rem; text-align:center;\">[ СИСТЕМА ГОТОВА К ВВОДУ КОМАНД ]</div>'; }";
-
-  html += "async function runAlgorithm() {";
-  html += "  if(isBusy || !program.length) return; isBusy = true; playSound('run');";
-  html += "  const btn = document.getElementById('run-btn'); btn.innerText = 'ВЫПОЛНЕНИЕ ЦИКЛА...'; btn.disabled = true;";
-  html += "  for(let cmd of program) {";
-  html += "    if(cmd.type === 'motor') {";
-  html += "      let res = await fetch(`/execute?f=${cmd.finger}&a=${cmd.angle}`);";
-  html += "      let statusTxt = await res.text();";
-  html += "      if(statusTxt === 'BUSY') { playSound('error'); alert('Роборука занята другим пользователем! Команда проигнорирована.'); break; }";
-  html += "      await new Promise(r => setTimeout(r, 600));";
-  html += "    } else if(cmd.type === 'wait') { await new Promise(r => setTimeout(r, cmd.val * 1000)); }";
-  html += "  }";
-  html += "  isBusy = false; btn.innerText = 'ВЫПОЛНИТЬ СКРИПТ'; btn.disabled = false; clearQueue();";
-  html += "}";
+  html += "async function runAlgorithm() { if(isBusy || !program.length) return; isBusy = true; playSound('run'); const btn = document.getElementById('run-btn'); btn.innerText = 'ВЫПОЛНЕНИЕ ЦИКЛА...'; btn.disabled = true; for(let cmd of program) { if(cmd.type === 'motor') { let res = await fetch('/execute?f=' + cmd.finger + '&a=' + cmd.angle); let statusTxt = await res.text(); if(statusTxt === 'BUSY') { playSound('error'); alert('Роборука занята другим пользователем! Команда проигнорирована.'); break; } await new Promise(r => setTimeout(r, 600)); } else if(cmd.type === 'wait') { await new Promise(r => setTimeout(r, cmd.val * 1000)); } } clearQueue(); let secondsLeft = 5; btn.style.color = 'var(--cls-alert)'; while(secondsLeft > 0) { btn.innerText = 'АВТО-СБРОС ЧЕРЕЗ ' + secondsLeft + ' С...'; await new Promise(r => setTimeout(r, 1000)); secondsLeft--; } btn.innerText = 'СБРОС В 0°...'; await fetch('/execute?f=5&a=0'); isBusy = false; btn.style.color = 'var(--cls-blue)'; btn.innerText = 'ВЫПОЛНИТЬ СКРИПТ'; btn.disabled = false; }";
 
   html += "function startVoiceRecognition() {";
   html += "  window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;";
