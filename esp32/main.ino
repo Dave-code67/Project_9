@@ -329,7 +329,7 @@ void handleRoot() {
   html += "    } catch(e) {}";
   html += "  }, 800);";
   html += "}";
-  html += "window.addEventListener('load', () => { startGlobalSync(); activateView(0); });";
+  html += "window.addEventListener('load', async () => { startGlobalSync(); try {let res = await fetch('/get_mode');if(res.ok) {let m = parseInt(await res.text());currentMode = m; updateStatusBar(m);document.querySelectorAll('.mode-view').forEach((v, idx) => { v.classList.toggle('active', idx === m); });const lBtn = document.getElementById('lockBtn');if(lBtn) lBtn.innerText = m === 0 ? '[ Сменить режим работы ] 🔒' : `[ АКТИВЕН РЕЖИМ 0${m+1} ] 🔐`;if(m === 2 || m === 3) { telemetryTimer = setInterval(pollSensors, 250); }} else {activateView(0);}} catch(e) {activateView(0);}});";
   html += "</script></body></html>";
   
   server.send(200, "text/html", html);
