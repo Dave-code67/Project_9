@@ -1,657 +1,481 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>INMOOV // HOTLINE MIAMI SYSTEM</title>
-    <style>
-        @import url('https://googleapis.com');
-
-        :root {
-            --hl-pink: #ff007f;
-            --hl-cyan: #00ffff;
-            --hl-green: #39ff14;
-            --hl-purple: #bd00ff;
-            --bg-dark: #05010a;
-            --card-bg: rgba(26, 0, 51, 0.85);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            background-color: var(--bg-dark);
-            color: #e2e8f0;
-            font-family: 'Courier Prime', monospace, sans-serif;
-            text-align: center;
-            padding: 40px 20px;
-            min-height: 100vh;
-            position: relative;
-            overflow-x: hidden;
-        }
-
-        .atmosphere {
-            position: fixed;
-            inset: 0;
-            z-index: -2;
-            pointer-events: none;
-            overflow: hidden;
-        }
-
-        .sky-sunset {
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(180deg, #05010a 0%, #1a0033 35%, #3d0066 55%, #ff007f 78%, #ffaa00 92%);
-            opacity: 0.85;
-            z-index: -2;
-        }
-
-        /* Увеличенное солнце, привязанное строго к границе заката */
-        .bg-sun {
-            position: absolute;
-            left: 50%;
-            top: 75%; /* Сдвинуто ровно на линию горизонта заката */
-            z-index: -3;
-            width: min(500px, 85vw); /* Размер увеличен с 300px */
-            height: min(500px, 85vw);
-            transform: translate(-50%, -50%);
-            background: linear-gradient(180deg, #ffcc44 0%, #ff6600 35%, #ff007f 70%, #660044 100%);
-            border-radius: 50%;
-            box-shadow: 0 0 50px #ffaa00, 0 0 80px #ff007f;
-            filter: brightness(1.2) saturate(1.15);
-            -webkit-mask-image: repeating-linear-gradient(180deg, #000 0px, #000 14px, transparent 14px, transparent 20px);
-            mask-image: repeating-linear-gradient(180deg, #000 0px, #000 14px, transparent 14px, transparent 20px);
-        }
-
-        .stars {
-            position: absolute;
-            inset: 0;
-            background-image:
-                radial-gradient(1px 1px at 8% 12%, rgba(255, 255, 255, 0.8), transparent),
-                radial-gradient(1px 1px at 22% 28%, rgba(255, 255, 255, 0.6), transparent),
-                radial-gradient(1.5px 1.5px at 35% 8%, rgba(0, 240, 255, 0.7), transparent),
-                radial-gradient(1px 1px at 61% 15%, rgba(255, 255, 255, 0.8), transparent),
-                radial-gradient(1.5px 1.5px at 88% 10%, rgba(255, 0, 127, 0.6), transparent);
-        }
-    </style>
-</head>
-    <style>
-        @keyframes title-glow {
-            0%, 100% { text-shadow: 0 0 10px var(--hl-pink), 0 0 20px var(--hl-pink); }
-            50% { text-shadow: 0 0 16px var(--hl-pink), 0 0 32px var(--hl-pink), 0 0 48px rgba(0, 240, 255, 0.25); }
-        }
-
-        h1 {
-            font-size: 1.6rem;
-            letter-spacing: 4px;
-            color: var(--hl-pink);
-            margin-bottom: 30px;
-            text-align: center;
-            animation: title-glow 3s ease-in-out infinite;
-            text-transform: uppercase;
-        }
-
-        h3 {
-            color: var(--hl-cyan);
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 15px;
-            text-align: left;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 450px;
-            position: relative;
-            margin: 0 auto;
-            z-index: 3;
-        }
-
-        .retro-card {
-            background: var(--card-bg);
-            border: 2px solid var(--hl-cyan);
-            box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
-            border-radius: 6px;
-            backdrop-filter: blur(6px);
-            padding: 20px;
-            margin-bottom: 20px;
-            text-align: left;
-        }
-
-        #status-bar {
-            background: #000;
-            border: 2px solid var(--hl-green);
-            padding: 12px;
-            font-weight: bold;
-            color: var(--hl-green);
-            margin-bottom: 20px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            box-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
-            text-align: center;
-            font-size: 0.9rem;
-        }
-
-        .btn-hl {
-            display: block;
-            width: 100%;
-            text-align: center;
-            background: transparent;
-            color: var(--hl-pink);
-            border: 2px solid var(--hl-pink);
-            padding: 14px;
-            font-weight: bold;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 0 10px rgba(255, 0, 127, 0.2);
-            font-family: 'Courier Prime', monospace;
-        }
-
-        .btn-hl:hover, .btn-hl:active {
-            background: var(--hl-pink);
-            color: #000;
-            box-shadow: 0 0 20px var(--hl-pink);
-        }
-
-        .select-hl {
-            background: #000;
-            border: 2px solid var(--hl-pink);
-            color: var(--hl-pink);
-            padding: 12px;
-            width: 100%;
-            font-family: 'Courier Prime', monospace;
-            font-weight: bold;
-            font-size: 0.95rem;
-            outline: none;
-            text-transform: uppercase;
-            box-sizing: border-box;
-            border-radius: 4px;
-            box-shadow: 0 0 10px rgba(255, 0, 127, 0.3);
-        }
-
-        .constructor-zone {
-            background: rgba(0, 0, 0, 0.75);
-            border: 2px solid var(--hl-purple);
-            min-height: 110px;
-            margin-bottom: 20px;
-            padding: 15px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-content: flex-start;
-            border-radius: 6px;
-        }
-
-        .algo-block {
-            background: rgba(0, 212, 255, 0.08);
-            color: var(--hl-cyan);
-            padding: 8px 12px;
-            border: 1px solid var(--hl-cyan);
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.2s;
-            text-transform: uppercase;
-        }
-
-        .algo-block:hover {
-            background: var(--hl-pink);
-            color: #fff;
-            border-color: var(--hl-pink);
-        }
-
-        .block-wait {
-            border-color: #ffcc00;
-            color: #ffcc00;
-            background: rgba(255, 204, 0, 0.05);
-        }
-
-        .controls {
-            margin-bottom: 20px;
-            text-align: left;
-        }
-
-        label {
-            font-size: 0.8em;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            font-weight: bold;
-            display: block;
-            margin-bottom: 5px;
-        }
-
-        .val-display {
-            float: right;
-            color: var(--hl-cyan);
-            font-size: 0.95em;
-            text-shadow: 0 0 5px var(--hl-cyan);
-        }
-
-        input[type=range] {
-            -webkit-appearance: none;
-            width: 100%;
-            background: transparent;
-            margin: 15px 0;
-        }
-
-        input[type=range]:focus {
-            outline: none;
-        }
-
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 6px;
-            cursor: pointer;
-            background: #1a1f29;
-            border-radius: 3px;
-            border: 1px solid #2a3344;
-        }
-
-        input[type=range]::-webkit-slider-thumb {
-            height: 22px;
-            width: 14px;
-            border-radius: 2px;
-            background: var(--hl-green);
-            cursor: pointer;
-            -webkit-appearance: none;
-            margin-top: -8px;
-            box-shadow: 0 0 10px var(--hl-green);
-            border: 1px solid #fff;
-        }
-
-        .btn-add {
-            width: 100%;
-            background: transparent;
-            color: var(--hl-cyan);
-            border: 1px solid var(--hl-cyan);
-            padding: 14px;
-            border-radius: 12px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 15px;
-            text-transform: uppercase;
-            font-size: 11px;
-            transition: 0.3s;
-            font-family: 'Courier Prime', monospace;
-        }
-
-        .btn-add:hover {
-            background: var(--hl-cyan);
-            color: #000;
-            box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
-        }
-
-        .btn-run {
-            width: 100%;
-            background: var(--hl-pink);
-            color: #fff;
-            padding: 20px;
-            border: none;
-            border-radius: 16px;
-            font-size: 1.1em;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 15px;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            box-shadow: 0 10px 30px rgba(255,0,85,0.3);
-            font-family: 'Courier Prime', monospace;
-        }
-
-        .btn-clear {
-            background: none;
-            border: none;
-            color: #484f58;
-            cursor: pointer;
-            margin-top: 15px;
-            font-size: 0.8em;
-            width: 100%;
-            font-family: 'Courier Prime', monospace;
-            text-transform: uppercase;
-        }
-
-        .disabled-ui {
-            opacity: 0.05;
-            pointer-events: none;
-            filter: grayscale(100%) blur(4px);
-            transition: 0.4s;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InMoov IDE // Control Terminal</title>
+  <style>
+    :root { 
+      --cls-blue: #00d2ff; 
+      --cls-dark-blue: #006699; 
+      --cls-bg: #020813; 
+      --cls-panel: rgba(5, 19, 43, 0.85); 
+      --cls-neon: #00ffff; 
+      --cls-text: #d1f4ff; 
+      --cls-muted: #5b7c99; 
+      --cls-alert: #ff3366; 
+    }
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      font-family: 'JetBrains Mono', 'Consolas', monospace; 
+    }
+    body { 
+      background-color: var(--cls-bg); 
+      color: var(--cls-text); 
+      padding: 30px 15px; 
+      min-height: 100vh; 
+      overflow-x: hidden; 
+      position: relative; 
+    }
+    /* Высокотехнологичная фоновая сетка */
+    .bg-grid { 
+      position: fixed; 
+      inset: 0; 
+      z-index: -1; 
+      opacity: 0.12; 
+      pointer-events: none; 
+      background-image: linear-gradient(var(--cls-blue) 1px, transparent 1px), linear-gradient(90deg, var(--cls-blue) 1px, transparent 1px); 
+      background-size: 30px 30px; 
+    }
+    .bg-circuit { 
+      position: fixed; 
+      inset: 0; 
+      z-index: -2; 
+      opacity: 0.05; 
+      pointer-events: none; 
+      background: radial-gradient(circle at 80% 20%, var(--cls-neon) 0%, transparent 40%), radial-gradient(circle at 20% 80%, var(--cls-dark-blue) 0%, transparent 50%); 
+    }
+    
+    .container { width: 100%; max-width: 540px; margin: 0 auto; position: relative; }
+    h1 { font-size: 1.5rem; letter-spacing: 2px; color: var(--cls-blue); margin-bottom: 25px; text-transform: uppercase; text-shadow: 0 0 10px rgba(0,210,255,0.4); text-align: center; }
+    #status-bar { background: #000; border-left: 4px solid var(--cls-blue); padding: 12px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 1px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+    .panel-card { background: var(--cls-panel); border: 1px solid rgba(0, 210, 255, 0.2); border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); backdrop-filter: blur(8px); }
+    .section-title { font-size: 0.85rem; color: var(--cls-muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; font-weight: bold; display: flex; align-items: center; gap: 8px; }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: rgba(0, 210, 255, 0.15); }
+    
+    .btn-core { display: block; width: 100%; background: transparent; color: var(--cls-blue); border: 1px solid var(--cls-blue); padding: 12px; font-weight: bold; text-transform: uppercase; cursor: pointer; transition: all 0.25s ease; border-radius: 4px; letter-spacing: 1px; font-size: 0.85rem; }
+    .btn-core:hover { background: rgba(0, 210, 255, 0.15); box-shadow: 0 0 12px rgba(0, 210, 255, 0.3); }
+    .btn-action { background: var(--cls-blue); color: #000; border: none; font-size: 0.95rem; font-weight: bold; letter-spacing: 2px; padding: 16px; margin-top: 10px; }
+    .btn-action:hover { background: var(--cls-neon); box-shadow: 0 0 20px var(--cls-neon); }
+    .btn-clear { background: rgba(255,51,102,0.1); border: 1px solid var(--cls-alert); color: var(--cls-alert); margin-top: 8px; padding: 10px; }
+    .btn-clear:hover { background: var(--cls-alert); color: #000; }
+    .select-core { background: #010c1e; border: 1px solid var(--cls-blue); color: var(--cls-blue); padding: 12px; width: 100%; font-size: 0.9rem; font-weight: bold; text-transform: uppercase; outline: none; border-radius: 4px; }
+    
+    .constructor-zone { background: rgba(0, 4, 10, 0.6); border: 1px dashed var(--cls-muted); min-height: 90px; margin-bottom: 15px; padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; border-radius: 4px; }
+    .algo-block { background: rgba(0, 210, 255, 0.1); color: var(--cls-neon); padding: 8px 12px; border: 1px solid var(--cls-blue); border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+    .algo-block:hover { border-color: var(--cls-alert); color: var(--cls-alert); background: rgba(255,51,102,0.05); }
+    .algo-block.block-wait { border-color: #ffaa00; color: #ffaa00; background: rgba(255,170,0,0.05); }
+    
+    .control-group { margin-bottom: 15px; }
+    label { font-size: 0.75rem; color: var(--cls-muted); text-transform: uppercase; display: block; margin-bottom: 5px; }
+    .val-badge { float: right; color: var(--cls-neon); font-weight: bold; }
+    
+    input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; margin: 8px 0; }
+    input[type=range]:focus { outline: none; }
+    input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #0c1a30; border-radius: 2px; }
+    input[type=range]::-webkit-slider-thumb { height: 18px; width: 10px; border-radius: 2px; background: var(--cls-blue); cursor: pointer; -webkit-appearance: none; margin-top: -7px; box-shadow: 0 0 8px var(--cls-blue); }
+    
+    .mode-view { display: none; } 
+    .mode-view.active { display: block; }
+    .info-terminal { background: rgba(0, 5, 15, 0.5); border: 1px solid rgba(0, 210, 255, 0.1); padding: 12px; border-radius: 4px; font-size: 0.8rem; line-height: 1.5; color: #a3c2db; }
+    .cmd-list { margin-top: 8px; padding-left: 15px; color: var(--cls-blue); }
+    .live-metrics { font-size: 1.1rem; color: var(--cls-neon); font-weight: bold; margin-top: 10px; text-align: center; letter-spacing: 1px; }
+  </style>
 </head>
 <body>
+  <div class="bg-circuit"></div>
+  <div class="bg-grid"></div>
 
-<div class="atmosphere">
-    <div class="sky-sunset"></div>
-    <div class="stars"></div>
-    <div class="bg-sun"></div>
-</div>
-<div class="container">
-    <h1>InMoov i2 System</h1>
-
-    <div id="status-bar">> СТАТУС: РУЧНОЙ КОНСТРУКТОР СЕТИ</div>
-
-    <h3>ВЫБОР РЕЖИМА УПРАВЛЕНИЯ</h3>
-    <div class="retro-card" style="border-color: var(--hl-pink); box-shadow: 0 0 15px rgba(255, 0, 127, 0.3);">
-        <button id="lockBtn" class="btn-hl" onclick="unlockSystemMenu()">[ СМЕНИТЬ РЕЖИМ СИСТЕМЫ ] 🔒</button>
-        <select id="modeSelect" class="select-hl" style="display: none;" onchange="handleMenuSelect(this.value)">
-            <option value="0">[ 01 // РУЧНОЙ КОНСТРУКТОР ]</option>
-            <option value="1">[ 02 // БИО-ЭМГ ИНТЕРФЕЙС ]</option>
-            <option value="2">[ 03 // АВТОНОМНЫЙ ХВАТ ]</option>
-            <option value="3">[ 04 // ГОЛОСОВОЙ МОДУЛЬ ]</option>
-        </select>
+  <div class="container">
+    <h1>InMoov Hand Center v3.0</h1>
+    <div id="status-bar" style="color:var(--cls-blue);">> Инициализация терминала...</div>
+    
+    <!-- Панель смены режима под паролем -->
+    <div class="panel-card">
+      <div class="section-title">Системный режим</div>
+      <button id="lockBtn" class="btn-core" onclick="unlockSystemMenu()">[ Сменить режим работы ] 🔒</button>
+      <select id="modeSelect" class="select-core" style="display: none;" onchange="handleMenuSelect(this.value)">
+        <option value="0">01 // Ручной Конструктор алгоритмов</option>
+        <option value="1">02 // Голосовое управление</option>
+        <option value="2">03 // Автономный хват датчиком HC-SR04</option>
+        <option value="3">04 // БИО-ЭМГ мышечный интерфейс</option>
+      </select>
     </div>
 
-    <div id="secure-interactive-area">
-        <h3>ОЧЕРЕДЬ АЛГОРИТМА КОМАНД</h3>
+    <div id="main-workspace">
+      <!-- РЕЖИМ 1: РУЧНОЙ КОНСТРУКТОР -->
+      <div id="view-0" class="mode-view active">
+        <div class="section-title">Очередь алгоритма команд</div>
         <div class="constructor-zone" id="queue">
-            <div id="placeholder" style="color: #444; width: 100%; margin-top: 35px; font-size: 0.7em; letter-spacing: 2px; text-align: center;">ОЖИДАНИЕ КОМАНД...</div>
+          <div id="placeholder" style="color:#445577; width:100%; margin-top:25px; font-size:0.75rem; text-align:center;">[ СИСТЕМА ГОТОВА К ВВОДУ КОМАНД ]</div>
         </div>
-
-        <div class="retro-card">
-            <div class="controls">
-                <label>ВЫБОР ПРИВОДА: <span id="f-val" class="val-display">БОЛЬШОЙ ПАЛЕЦ</span></label>
-                <input type="range" id="f-slider" min="0" max="5" step="1" value="0" oninput="updateF()">
-            </div>
-
-            <div class="controls">
-                <label>УГОЛ СЖАТИЯ: <span id="p-val" class="val-display">0°</span></label>
-                <input type="range" id="p-slider" min="0" max="180" step="5" value="0" oninput="updateP()">
-                <button class="btn-add" onclick="addFingerAction()">ДОБАВИТЬ В ОЧЕРЕДЬ</button>
-            </div>
+        <div class="panel-card">
+          <div class="control-group">
+            <label>Выбор привода: <span id="f-val" class="val-badge">БОЛЬШОЙ ПАЛЕЦ</span></label>
+            <input type="range" id="f-slider" min="0" max="5" step="1" value="0" oninput="updateF()" />
+          </div>
+          <div class="control-group">
+            <label>Угол сжатия: <span id="p-val" class="val-badge">0°</span></label>
+            <input type="range" id="p-slider" min="0" max="180" step="5" value="0" oninput="updateP()" />
+          </div>
+          <button class="btn-core" onclick="addFingerAction()">Добавить команду в скрипт</button>
         </div>
-
-        <div class="retro-card">
-            <div class="controls">
-                <label>ЗАДЕРЖКА: <span id="w-val" class="val-display">1 СЕК</span></label>
-                <input type="range" id="w-slider" min="1" max="10" step="1" value="1" oninput="updateW()">
-                <button class="btn-add" style="border-color: #ffcc00; color: #ffcc00;" onclick="addWaitAction()">ДОБАВИТЬ ПАУЗУ</button>
-            </div>
+        <div class="panel-card">
+          <div class="control-group">
+            <label>Таймаут паузы: <span id="w-val" class="val-badge">1 СЕК</span></label>
+            <input type="range" id="w-slider" min="1" max="10" step="1" value="1" oninput="updateW()" />
+          </div>
+          <button class="btn-core" style="border-color:#ffaa00; color:#ffaa00;" onclick="addWaitAction()">Добавить задержку</button>
         </div>
+        <button class="btn-core btn-action" id="run-btn" onclick="runAlgorithm()">Выполнить скрипт</button>
+        <button class="btn-core btn-clear" onclick="clearQueue()">Очистить буфер</button>
+      </div>
 
-        <button class="btn-run" onclick="runAlgorithm()" id="run-btn">ИСПОЛНИТЬ ЦИКЛ</button>
-        <button class="btn-clear" onclick="clearQueue()">ПОЛНЫЙ СБРОС</button>
+      <!-- РЕЖИМ 2: ГОЛОСОВОЕ УПРАВЛЕНИЕ -->
+      <div id="view-1" class="mode-view">
+        <div class="panel-card">
+          <div class="info-terminal">
+            <b>ГОЛОСОВОЙ МОДУЛЬ RECOGNITION:</b><br/>
+            Синтаксический анализатор браузера распознает речь на лету.<br/>
+            <div class="cmd-list">
+              • «кулак» / «сожми» → Полный хват кисти (180°)<br/>
+              • «ладонь» / «открой» → Полное разжатие (0°)"
+            </div>
+          </div>
+          <div style="margin-top:20px;">
+            <button id="voiceBtn" class="btn-core" style="border-color:var(--cls-neon); color:var(--cls-neon);" onclick="startVoiceRecognition()">🎙️ Включить микрофон</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- РЕЖИМ 3: АВТОНОМНЫЙ ХВАТ ДАТЧИКОМ HC-SR04 -->
+      <div id="view-2" class="mode-view">
+        <div class="panel-card">
+          <div class="info-terminal">
+            <b>АВТОНОМНЫЙ ХВАТ ДАТЧИКОМ:</b><br/>
+            Автоматический захват при пересечении инфра-зоны ультразвука.
+          </div>
+          <div class="panel-card" style="margin-top:15px; background:rgba(0,0,0,0.2); margin-bottom: 0;">
+            <label>Порог срабатывания: <span class="val-badge">12 см</span></label>
+            <label>Задержка удержания: <span class="val-badge">3 сек</span></label>
+            <div class="live-metrics" id="sonar-metrics">Расстояние: -- см</div>
+            <div id="sonar-status" style="text-align:center; margin-top:8px; font-size:0.8rem; color:var(--cls-muted);">Поиск объекта...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- РЕЖИМ 4: БИО-ЭМГ МЫШЕЧНЫЙ ИНТЕРФЕЙС -->
+      <div id="view-3" class="mode-view">
+        <div class="panel-card">
+          <div class="section-title">Телеметрия мышечной активности ЭМГ</div>
+          <div class="control-group" style="margin-top:15px;"><label>Большой палец: <span id="emg-0" class="val-badge">0%</span></label><input type='range' class='emg-s' id='emg-s-0' disabled value='0'/></div>
+          <div class="control-group"><label>Указательный: <span id="emg-1" class="val-badge">0%</span></label><input type='range' class='emg-s' id='emg-s-1' disabled value='0'/></div>
+          <div class="control-group"><label>Средний палец: <span id="emg-2" class="val-badge">0%</span></label><input type='range' class='emg-s' id='emg-s-2' disabled value='0'/></div>
+          <div class="control-group"><label>Безымянный: <span id="emg-3" class="val-badge">0%</span></label><input type='range' class='emg-s' id='emg-s-3' disabled value='0'/></div>
+          <div class="control-group"><label>Мизинец: <span id="emg-4" class="val-badge">0%</span></label><input type='range' class='emg-s' id='emg-s-4' disabled value='0'/></div>
+        </div>
+      </div>
     </div>
+  </div>
+  <script>
+    const SECRET_PIN = '47781842'; 
+    let currentMode = 0; 
+    let program = []; 
+    let isBusy = false; 
+    let telemetryTimer = null;
 
-    <div id="voice-module-zone" style="display: none; margin-top: 25px;">
-        <h3>ГОЛОСОВОЙ ИНТЕРФЕЙС OPERATOR</h3>
-        <div class="retro-card" style="border-color: var(--hl-green); box-shadow: 0 0 15px rgba(57, 255, 20, 0.2);">
-            <button id="voiceBtn" class="btn-hl" style="border-color: var(--hl-green); color: var(--hl-green);" onclick="startVoiceRecognition()">🎙️ НАЧАТЬ СКАНИРОВАНИЕ ГОЛОСА</button>
-        </div>
-    </div>
-</div>
-<script>
-    const SECRET_PIN = "47781842";
-    let currentMode = 0;
-    let program = [];
-    let isBusy = false;
-
-    const fingers = ["БОЛЬШОЙ ПАЛЕЦ", "УКАЗАТЕЛЬНЫЙ", "СРЕДНИЙ ПАЛЕЦ", "БЕЗЫМЯННЫЙ", "МИЗИНЕЦ", "ВСЯ КИСТЬ"];
-    const fingers_eng = ["thumb", "index", "middle", "ring", "pinky", "fist"];
-
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
+    const fingers = ['БОЛЬШОЙ ПАЛЕЦ', 'УКАЗАТЕЛЬНЫЙ', 'СРЕДНИЙ ПАЛЕЦ', 'БЕЗЫМЯННЫЙ', 'МИЗИНЕЦ', 'ВСЯ КИСТЬ'];
+    const fingers_eng = ['thumb', 'index', 'middle', 'ring', 'pinky', 'fist'];
+    
+    // Синтезатор 8-битных системных звуков на чистом Web Audio API
     function playSound(type) {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-
-        if (type === 'click') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.05);
-        } else if (type === 'run') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
-            osc.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + 0.3);
-            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.3);
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext; 
+        if(!AudioContext) return;
+        const ctx = playSound._ctx || (playSound._ctx = new AudioContext()); 
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator(); 
+        const gain = ctx.createGain(); 
+        osc.connect(gain); 
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        
+        if(type==='click'){ 
+          osc.frequency.setValueAtTime(600, now); 
+          gain.gain.setValueAtTime(0.05, now); 
+          gain.gain.exponentialRampToValueAtTime(0.001, now+0.04); 
+          osc.start(now); osc.stop(now+0.04); 
         }
+        else if(type==='add'){ 
+          osc.frequency.setValueAtTime(900, now); 
+          gain.gain.setValueAtTime(0.05, now); 
+          gain.gain.exponentialRampToValueAtTime(0.001, now+0.05); 
+          osc.start(now); osc.stop(now+0.05); 
+        }
+        else if(type==='run'){ 
+          osc.type='square'; 
+          osc.frequency.setValueAtTime(200, now); 
+          osc.frequency.linearRampToValueAtTime(500, now+0.2); 
+          gain.gain.setValueAtTime(0.04, now); 
+          gain.gain.exponentialRampToValueAtTime(0.001, now+0.2); 
+          osc.start(now); osc.stop(now+0.2); 
+        }
+        else if(type==='error'){ 
+          osc.type='sawtooth'; 
+          osc.frequency.setValueAtTime(150, now); 
+          gain.gain.setValueAtTime(0.08, now); 
+          gain.gain.exponentialRampToValueAtTime(0.001, now+0.15); 
+          osc.start(now); osc.stop(now+0.15); 
+        }
+      } catch(e){}
     }
 
-    function updateF() {
-        document.getElementById('f-val').innerText = fingers[document.getElementById('f-slider').value];
-        playSound('click');
-    }
+    // Живое обновление текстовых полей ползунков
+    function updateF() { document.getElementById('f-val').innerText = fingers[document.getElementById('f-slider').value]; playSound('click'); }
+    function updateP() { document.getElementById('p-val').innerText = document.getElementById('p-slider').value + '°'; playSound('click'); }
+    function updateW() { document.getElementById('w-val').innerText = document.getElementById('w-slider').value + ' СЕК'; playSound('click'); }
 
-    function updateP() {
-        document.getElementById('p-val').innerText = document.getElementById('p-slider').value + "°";
-        playSound('click');
-    }
-
-    function updateW() {
-        document.getElementById('w-val').innerText = document.getElementById('w-slider').value + " СЕК";
-        playSound('click');
-    }
-
+    // Безопасное админ-меню под PIN-кодом
     function unlockSystemMenu() {
-        playSound('click');
-        let userInput = prompt("ENTER ACCESS CODE // ВВЕДИТЕ ПИН-КОД АДМИНИСТРАТОРА:");
-        if (userInput === SECRET_PIN) {
-            alert("ACCESS GRANTED // МЕНЮ РАЗБЛОКИРОВАНО");
-            document.getElementById("lockBtn").style.display = "none";
-            const selectMenu = document.getElementById("modeSelect");
-            selectMenu.style.display = "block";
-            selectMenu.value = currentMode;
-        } else {
-            alert("ACCESS DENIED // ОТКАЗАНО В ДОСТУПЕ");
-        }
+      playSound('click'); 
+      let code = prompt('ВВЕДИТЕ КЛЮЧ АДМИНИСТРАТОРА ДЛЯ СМЕНЫ РЕЖИМА:');
+      if(code === SECRET_PIN) {
+        document.getElementById('lockBtn').style.display = 'none';
+        const sel = document.getElementById('modeSelect'); 
+        sel.style.display = 'block'; 
+        sel.value = currentMode;
+      } else { 
+        playSound('error'); 
+        alert('ОТКАЗАНО В ДОСТУПЕ: КЛЮЧ НЕВАЛИДЕН'); 
+      }
     }
 
-    function handleMenuSelect(selectedMode) {
-        playSound('click');
-        activateMode(parseInt(selectedMode));
-
-        document.getElementById("modeSelect").style.display = "none";
-        const lockBtn = document.getElementById("lockBtn");
-        lockBtn.style.display = "block";
-
-        if(parseInt(selectedMode) === 0) {
-            lockBtn.style.borderColor = "var(--hl-pink)";
-            lockBtn.style.color = "var(--hl-pink)";
-            lockBtn.innerText = "[ СМЕНИТЬ РЕЖИМ СИСТЕМЫ ] 🔒";
-        } else {
-            lockBtn.style.borderColor = "var(--hl-green)";
-            lockBtn.style.color = "var(--hl-green)";
-            lockBtn.innerText = `[ АКТИВЕН РЕЖИМ 0${parseInt(selectedMode) + 1} ] 🔐`;
-        }
-    }
-
-    function activateMode(modeNum) {
-        currentMode = modeNum;
-        const statusBar = document.getElementById("status-bar");
-        const area = document.getElementById("secure-interactive-area");
-        const voiceZone = document.getElementById("voice-module-zone");
-
-        fetch('/set_mode?m=' + modeNum);
-
-        if (modeNum === 0) {
-            statusBar.innerHTML = "> СТАТУС: РУЧНОЙ КОНСТРУКТОР СЕТИ";
-            statusBar.style.borderColor = "var(--hl-green)";
-            statusBar.style.color = "var(--hl-green)";
-            area.classList.remove("disabled-ui");
-            voiceZone.style.display = "none";
-        } else {
-            area.classList.add("disabled-ui");
-            statusBar.style.borderColor = "var(--hl-pink)";
-            statusBar.style.color = "var(--hl-pink)";
-            if (modeNum === 1) statusBar.innerHTML = "> ЗАБЛОКИРОВАНО // БИО-ЭМГ ИНТЕРФЕЙС";
-            if (modeNum === 2) statusBar.innerHTML = "> ЗАБЛОКИРОВАНО // АВТОНОМНЫЙ ХВАТ";
-            if (modeNum === 3) {
-                statusBar.innerHTML = "> ЗАБЛОКИРОВАНО // ГОЛОСОВОЙ МОДУЛЬ";
-                voiceZone.style.display = "block";
-            } else {
-                voiceZone.style.display = "none";
-            }
-        }
-    }
-
+    // Логика добавления команд и паузы в буфер скриптов
     function addFingerAction() {
-        playSound('click');
-        let f_idx =
-          parseInt(document.getElementById('f-slider').value);
-        let p_val =
-          parseInt(document.getElementById('p-slider').value);
-        document.getElementById('placeholder').style.display = 'none';
-        let id = Date.now();
-        program.push({id, type: 'motor', finger: fingers_eng[f_idx], val: p_val, f_num: parseInt(f_idx) + 1});
-        updateUI(fingers[f_idx] + " : " + p_val + "°", "algo-block", id);
+      playSound('add'); 
+      let f_idx = parseInt(document.getElementById('f-slider').value); 
+      let p_val = parseInt(document.getElementById('p-slider').value);
+      document.getElementById('placeholder').style.display = 'none'; 
+      let id = Date.now();
+      program.push({id, type: 'motor', finger: f_idx, angle: p_val});
+      renderBlock(fingers[f_idx] + ' → ' + p_val + '°', 'algo-block', id);
     }
 
     function addWaitAction() {
-        playSound('click');
-        let sec = document.getElementById('w-slider').value;
-        document.getElementById('placeholder').style.display = 'none';
-        let id = Date.now();
-        program.push({id, type: 'wait', val: sec});
-        updateUI("ПАУЗА " + sec + " СЕК", "algo-block block-wait", id);
+      playSound('add'); 
+      let sec = parseInt(document.getElementById('w-slider').value);
+      document.getElementById('placeholder').style.display = 'none'; 
+      let id = Date.now();
+      program.push({id, type: 'wait', val: sec});
+      renderBlock('ПАУЗА ' + sec + ' СЕК', 'algo-block block-wait', id);
     }
 
-    function updateUI(text, className, id) {
-        let div = document.createElement('div');
-        div.className = className;
-        div.innerText = text;
-        div.onclick = () => {
-            playSound('click');
-            program = program.filter(i => i.id !== id);
-            div.remove();
-            if(!program.length) document.getElementById('placeholder').style.display = 'block';
-        };
-        document.getElementById('queue').appendChild(div);
+    function renderBlock(text, className, id) {
+      let div = document.createElement('div'); 
+      div.className = className; 
+      div.innerText = text;
+      div.onclick = () => { 
+        playSound('error'); 
+        program = program.filter(x => x.id !== id); 
+        div.remove(); 
+        if(!program.length) document.getElementById('placeholder').style.display = 'block'; 
+      };
+      document.getElementById('queue').appendChild(div);
     }
 
-    function clearQueue() {
-        playSound('click');
-        program = [];
-        document.getElementById('queue').innerHTML = '<div id="placeholder" style="color: #444; width: 100%; margin-top: 35px; font-size: 0.7em; letter-spacing: 2px; text-align: center;">ОЖИДАНИЕ КОМАНД...</div>';
+    function clearQueue() { 
+      playSound('click'); 
+      program = []; 
+      document.getElementById('queue').innerHTML = '<div id="placeholder" style="color:#445577; width:100%; margin-top:25px; font-size:0.75rem; text-align:center;">[ СИСТЕМА ГОТОВА К ВВОДУ КОМАНД ]</div>'; 
     }
-
+    // Выполнение алгоритма конструктора (С защитой от одновременных действий пользователей)
     async function runAlgorithm() {
-        if(isBusy || !program.length) return;
-        isBusy = true;
-        playSound('run');
-        const btn = document.getElementById('run-btn');
-        btn.innerText = "ВЫПОЛНЕНИЕ...";
-        btn.style.background = "#222";
-        const zone = document.getElementById('queue');
-
-        for (let i = 0; i < program.length; i++) {
-            let cmd = program[i];
-            if (zone.children[i+1]) zone.children[i+1].style.borderColor = "var(--hl-pink)";
-
-            if (cmd.type === 'motor') {
-                if (cmd.finger === "fist") {
-                    for (let f = 1; f <= 5; f++) {
-                        fetch(`/move?f=${f}&a=${cmd.val}`);
-                        await new Promise(r => setTimeout(r, 40));
-                    }
-                } else {
-                    fetch(`/move?f=${cmd.f_num}&a=${cmd.val}`);
-                }
-                await new Promise(r => setTimeout(r, 500));
-            } else if (cmd.type === 'wait') {
-                await new Promise(r => setTimeout(r, cmd.val * 1000));
+      if(isBusy || !program.length) return; 
+      isBusy = true; 
+      playSound('run');
+      
+      const btn = document.getElementById('run-btn'); 
+      btn.innerText = 'ВЫПОЛНЕНИЕ ЦИКЛА...'; 
+      btn.disabled = true;
+      
+      for(let cmd of program) {
+        if(cmd.type === 'motor') {
+          try {
+            let res = await fetch(`/execute?f=${cmd.finger}&a=${cmd.angle}`);
+            let statusTxt = await res.text();
+            if(statusTxt === 'BUSY') { 
+              playSound('error'); 
+              alert('Роборука занята другим пользователем! Выполнение скрипта прервано.'); 
+              break; 
             }
-            if (zone.children[i+1]) zone.children[i+1].style.borderColor = "var(--hl-cyan)";
+          } catch(e) {
+            console.log("Локальный запуск без ESP32: Команда мотора имитирована.");
+          }
+          await new Promise(r => setTimeout(r, 600));
+        } else if(cmd.type === 'wait') { 
+          await new Promise(r => setTimeout(r, cmd.val * 1000)); 
         }
-        isBusy = false;
-        btn.innerText = "ИСПОЛНИТЬ ЦИКЛ";
-        btn.style.background = "var(--hl-pink)";
-        clearQueue();
+      }
+      
+      isBusy = false; 
+      btn.innerText = 'ВЫПОЛНИТЬ СКРИПТ'; 
+      btn.disabled = false; 
+      clearQueue();
     }
 
+    // Речевой модуль (Web Speech API)
     function startVoiceRecognition() {
-        const btn = document.getElementById("voiceBtn");
-        window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!window.SpeechRecognition) {
-            alert("Браузер не поддерживает голос");
-            return;
+      window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if(!window.SpeechRecognition) { 
+        alert('Ваш браузер не поддерживает голосовое управление (Рекомендуется Google Chrome).'); 
+        return; 
+      }
+      
+      const rec = new SpeechRecognition(); 
+      rec.lang = 'ru-RU'; 
+      rec.start();
+      
+      const btn = document.getElementById('voiceBtn'); 
+      btn.innerText = '⏳ Слушаю команду...'; 
+      playSound('click');
+      
+      rec.onresult = async function(e) {
+        let cmd = e.results[0][0].transcript.toLowerCase(); 
+        btn.innerText = '🎙️ Распознано: ' + cmd.toUpperCase();
+        
+        try {
+          if(cmd.includes('кулак') || cmd.includes('сожми')) { 
+            playSound('run'); 
+            let res = await fetch('/execute?f=5&a=180'); 
+            let txt = await res.text(); 
+            if(txt==='BUSY') alert('Устройство занято!'); 
+          }
+          else if(cmd.includes('ладонь') || cmd.includes('открой')) { 
+            playSound('run'); 
+            let res = await fetch('/execute?f=5&a=0'); 
+            let txt = await res.text(); 
+            if(txt==='BUSY') alert('Устройство занято!'); 
+          } else {
+            playSound('error');
+          }
+        } catch(err) {
+          console.log("Локальный запуск без ESP32: Речевая команда имитирована.");
         }
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'ru-RU';
-        btn.innerHTML = "⏳ СЛУШАЮ КОМАНДУ...";
-        recognition.start();
-
-        recognition.onresult = async function(event)
-        {
-            const command = event.results[0].transcript.toLowerCase();
-
-            btn.innerHTML =
-               '🎙️ ПОЛУЧЕНО: ' +
-               command.toUpperCase();
-
-            if (
-                command.includes('кулак') ||
-                command.includes('сожми')
-            )
-            {
-            playSound('run');
-
-            for(let i = 0; i < 5; i++)
-            {
-                await fetch(`/execute?f=${i}&a=180`);
-                await new Promise(r => setTimeout(r, 100));
-            }
-            }
-            else if (
-                command.includes('ладонь') ||
-                command.includes('открой')
-            )
-            {
-                playSound('run');
-
-                for(let i = 0; i < 5; i++)
-                {
-                    await fetch(`/execute?f=${i}&a=0`);
-                    await new Promise(r => setTimeout(r, 100));
-                }
-            }
-
-            btn.innerHTML =
-                '🎙️ НАЧАТЬ СКАНИРОВАНИЕ ГОЛОСА';
-        };
-        recognition.onerror = function() {
-            btn.innerHTML = "🎙️ ОШИБКА СКАНИРОВАНИЯ";
-        };
-        recognition.onend = function() {
-            setTimeout(() => {
-                btn.innerHTML = "🎙️ НАЧАТЬ СКАНИРОВАНИЕ ГОЛОСА";
-            }, 2000);
-        };
+      };
+      
+      rec.onerror = () => { 
+        btn.innerText = '🎙️ Ошибка записи'; 
+        playSound('error'); 
+      };
     }
-    async function loadCurrentMode() {
-    try {
-        const response = await fetch('/get_mode');
 
-        if (!response.ok) {
-            throw new Error("Ошибка получения режима");
+    // Опрос датчиков телеметрии по сети
+    async function pollSensors() {
+      try {
+        let res = await fetch('/sensor_state'); 
+        if(!res.ok) return; 
+        let data = await res.json();
+        
+        // Обновление метрик сонара (Режим 3)
+        if(currentMode === 2) {
+          document.getElementById('sonar-metrics').innerText = 'Расстояние: ' + data.dist_cm + ' см';
+          let statusDiv = document.getElementById('sonar-status');
+          if(data.dist_cm <= 12 && data.dist_cm > 0) { 
+            statusDiv.innerText = 'Объект захвачен! Отпускание через ' + data.timer_s + ' сек'; 
+            statusDiv.style.color = 'var(--cls-neon)'; 
+          } else { 
+            statusDiv.innerText = 'Поиск объекта (зона срабатывания <= 12 см)...'; 
+            statusDiv.style.color = 'var(--cls-muted)'; 
+          }
         }
-
-        const mode = parseInt(await response.text());
-
-        currentMode = mode;
-        activateMode(mode);
-
-    } catch (err) {
-        console.error(err);
+        // Обновление метрик ЭМГ (Режим 4)
+        if(currentMode === 3) {
+          for(let i=0; i<5; i++) { 
+            document.getElementById('emg-'+i).innerText = data.emg_pct + '%'; 
+            document.getElementById('emg-s-'+i).value = data.emg_pct; 
+          }
+        }
+      } catch(e) {
+        // Демо-данные для локального тестирования в браузере без ESP32
+        if(currentMode === 2) {
+          document.getElementById('sonar-metrics').innerText = 'Расстояние: 8 см (ДЕМО)';
+          document.getElementById('sonar-status').innerText = 'Объект захвачен! Отпускание через 2 сек';
+        }
+        if(currentMode === 3) {
+          let testVal = Math.floor(Math.sin(Date.now() / 1000) * 50 + 50);
+          for(let i=0; i<5; i++) { 
+            document.getElementById('emg-'+i).innerText = testVal + '%'; 
+            document.getElementById('emg-s-'+i).value = testVal; 
+          }
+        }
+      }
     }
-}
 
-window.addEventListener('load', loadCurrentMode);
-</script>
+    // Переключение отображения режимов в UI
+    function handleMenuSelect(val) {
+      playSound('click'); 
+      let m = parseInt(val); 
+      activateView(m);
+      document.getElementById('modeSelect').style.display = 'none';
+      const lBtn = document.getElementById('lockBtn'); 
+      lBtn.style.display = 'block';
+      lBtn.innerText = m === 0 ? '[ Сменить режим работы ] 🔒' : `[ АКТИВЕН РЕЖИМ 0${m+1} ] 🔐`;
+    }
+
+    function activateView(modeNum) {
+      currentMode = modeNum; 
+      updateStatusBar(modeNum);
+      document.querySelectorAll('.mode-view').forEach((v, idx) => { v.classList.toggle('active', idx === modeNum); });
+      
+      try {
+        fetch('/set_mode?m=' + modeNum);
+      } catch(e) {}
+      
+      if(telemetryTimer) { clearInterval(telemetryTimer); telemetryTimer = null; }
+      if(modeNum === 2 || modeNum === 3) { telemetryTimer = setInterval(pollSensors, 250); }
+    }
+
+    function updateStatusBar(m) {
+      const bar = document.getElementById('status-bar');
+      const labels = [ 
+        'СТАТУС: РУЧНОЙ КОНСТРУКТОР АЛГОРИТМОВ', 
+        'СТАТУС: ГОЛОСОВОЙ МОДУЛЬ RECOGNITION ACTIVE', 
+        'СТАТУС: АВТОНОМНЫЙ ХВАТ (HC-SR04 МОНИТОР)', 
+        'СТАТУС: БИО-ЭМГ ИНТЕРФЕЙС ТЕЛЕМЕТРИИ' 
+      ];
+      bar.innerText = '> ' + (labels[m] || labels[0]);
+    }
+
+    // Межвкладочная глобальная автосинхронизация активного режима
+    function startGlobalSync() {
+      setInterval(async () => {
+        try {
+          let res = await fetch('/get_mode'); 
+          if(!res.ok) return; 
+          let m = parseInt(await res.text());
+          if(m !== currentMode) { 
+            currentMode = m; 
+            updateStatusBar(m); 
+            document.querySelectorAll('.mode-view').forEach((v, idx) => { v.classList.toggle('active', idx === m); }); 
+            const lBtn = document.getElementById('lockBtn');
+            if(lBtn.style.display !== 'none') {
+              lBtn.innerText = m === 0 ? '[ Сменить режим работы ] 🔒' : `[ АКТИВЕН РЕЖИМ 0${m+1} ] 🔐`;
+            }
+          }
+        } catch(e) {}
+      }, 800);
+    }
+
+    window.navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => {
+      console.log("Запрос прав на аудио для корректной инициализации Speech API");
+    });
+
+    window.addEventListener('load', () => { 
+      startGlobalSync(); 
+      activateView(0); 
+    });
+  </script>
 </body>
 </html>
