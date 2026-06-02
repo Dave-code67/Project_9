@@ -5,6 +5,7 @@
 
 #define ARDUINO_UNO_I2C_ADDR 8
 
+// Настройки автономной Wi-Fi точки доступа
 const char* ssid = "InMoov_Hand_AP";
 const char* password = "12345678password";
 
@@ -14,13 +15,13 @@ const byte DNS_PORT = 53;
 DNSServer dnsServer;
 WebServer server(80);
 
-// Глобальное состояние системы
+// Глобальное состояние роборуки
 int currentFingers[5] = {0, 0, 0, 0, 0};
 int currentMode = 0;
-bool isRobotBusy = false;          // Флаг занятости для защиты от одновременных запросов
-unsigned long robotBusyUntil = 0;  // Таймер блокировки
+bool isRobotBusy = false;          // Защита от одновременных запросов пользователей
+unsigned long robotBusyUntil = 0;  // Таймер блокировки коллизий
 
-// Функция отправки команды на Arduino Uno по I2C
+// Функция отправки углов на Arduino Uno по шине I2C
 void sendCommandToUno(byte fingerNum, byte angle) {
   Wire.beginTransmission(ARDUINO_UNO_I2C_ADDR);
   Wire.write(fingerNum);
@@ -29,15 +30,16 @@ void sendCommandToUno(byte fingerNum, byte angle) {
   Serial.printf("[I2C] Отправлено: Палец %d, Угол %d\n", fingerNum, angle);
 }
 
+// Функция отправки текущего режима работы на Arduino Uno
 void sendModeToUno(int mode) {
   Wire.beginTransmission(ARDUINO_UNO_I2C_ADDR);
-  Wire.write((byte)255);
+  Wire.write((byte)255); // Маркер смены режима
   Wire.write((byte)mode);
   Wire.endTransmission();
   Serial.printf("[I2C] Изменен режим на UNO: %d\n", mode);
 }
 
-// Базовая проверка анатомических ограничений (Anti-Jam System)
+// Проверка базовой анатомической безопасности (Anti-Jam System)
 bool isValidFingerConfig(int fingers[5]) {
   int thumb = fingers[0];
   int index = fingers[1];
@@ -45,19 +47,19 @@ bool isValidFingerConfig(int fingers[5]) {
   int ring = fingers[3];
   int pinky = fingers[4];
 
-  // Запрещено: открыт только средний палец
+  // Запрещено: поднят только средний палец
   if (middle > 90 && thumb < 90 && index < 90 && ring < 90 && pinky < 90) return false;
-  // Запрещено: открыты только средний и большой
+  // Запрещено: подняты только средний и большой
   if (middle > 90 && thumb > 90 && index < 90 && ring < 90 && pinky < 90) return false;
   return true;
 }
 
-// Проверка корректности шага в Конструкторе
+// Проверка корректности шага алгоритма в Конструкторе
 bool isValidConstructorMove(int fingerIdx, int targetAngle, int currentState[5]) {
   int tempFingers[5];
   for(int i = 0; i < 5; i++) tempFingers[i] = currentState[i];
   
-  if (fingerIdx == 5) { // Команда всей кисти
+  if (fingerIdx == 5) { // Команда всей кисти целиком
     for(int i = 0; i < 5; i++) tempFingers[i] = targetAngle;
   } else if (fingerIdx >= 0 && fingerIdx < 5) {
     tempFingers[fingerIdx] = targetAngle;
@@ -65,22 +67,19 @@ bool isValidConstructorMove(int fingerIdx, int targetAngle, int currentState[5])
 
   if (!isValidFingerConfig(tempFingers)) return false;
 
-  // Динамические правила переходов
+  // Проверка динамических переходов суставов
   bool allClenched = true;
-  bool allOpen = true;
   for(int i = 0; i < 5; i++) {
     if(currentState[i] <= 90) allClenched = false;
-    if(currentState[i] > 90) allOpen = false;
   }
 
-  // Из полностью сжатого состояния нельзя разогнуть только средний или средний+большой
+  // Из полностью сжатого кулака нельзя выпрямить только один средний палец
   if (allClenched && targetAngle <= 90) {
     if (fingerIdx == 2) return false; 
   }
   return true;
 }
-
-// Генерация интерфейса (Новый холодный IT-стиль)
+// Функция генерации и отправки веб-интерфейса в браузер
 void handleRoot() {
   String html = "<!DOCTYPE html><html lang='ru'><head><meta charset='UTF-8'>";
   html += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
@@ -89,13 +88,9 @@ void handleRoot() {
   html += ":root { --cls-blue: #00d2ff; --cls-dark-blue: #006699; --cls-bg: #020813; --cls-panel: rgba(5, 19, 43, 0.85); --cls-neon: #00ffff; --cls-text: #d1f4ff; --cls-muted: #5b7c99; --cls-alert: #ff3366; }";
   html += "* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'JetBrains Mono', 'Consolas', monospace; }";
   html += "body { background-color: var(--cls-bg); color: var(--cls-text); padding: 30px 15px; min-height: 100vh; overflow-x: hidden; position: relative; }";
-  
-  // Задний фон: Высокотехнологичная сетка кодинга
   html += ".bg-grid { position: fixed; inset: 0; z-index: -1; opacity: 0.12; pointer-events: none; ";
   html += "background-image: linear-gradient(var(--cls-blue) 1px, transparent 1px), linear-gradient(90deg, var(--cls-blue) 1px, transparent 1px); background-size: 30px 30px; }";
   html += ".bg-circuit { position: fixed; inset: 0; z-index: -2; opacity: 0.05; pointer-events: none; background: radial-gradient(circle at 80% 20%, var(--cls-neon) 0%, transparent 40%), radial-gradient(circle at 20% 80%, var(--cls-dark-blue) 0%, transparent 50%); }";
-  
-  // Стили интерфейса
   html += ".container { width: 100%; max-width: 540px; margin: 0 auto; position: relative; }";
   html += "h1 { font-size: 1.5rem; letter-spacing: 2px; color: var(--cls-blue); margin-bottom: 25px; text-transform: uppercase; text-shadow: 0 0 10px rgba(0,210,255,0.4); text-align: center; }";
   html += "#status-bar { background: #000; border-left: 4px solid var(--cls-blue); padding: 12px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 1px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }";
@@ -109,14 +104,10 @@ void handleRoot() {
   html += ".btn-clear { background: rgba(255,51,102,0.1); border: 1px solid var(--cls-alert); color: var(--cls-alert); margin-top: 8px; padding: 10px; }";
   html += ".btn-clear:hover { background: var(--cls-alert); color: #000; }";
   html += ".select-core { background: #010c1e; border: 1px solid var(--cls-blue); color: var(--cls-blue); padding: 12px; width: 100%; font-size: 0.9rem; font-weight: bold; text-transform: uppercase; outline: none; border-radius: 4px; }";
-  
-  // Конструктор зон
   html += ".constructor-zone { background: rgba(0, 4, 10, 0.6); border: 1px dashed var(--cls-muted); min-height: 90px; margin-bottom: 15px; padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; border-radius: 4px; }";
   html += ".algo-block { background: rgba(0, 210, 255, 0.1); color: var(--cls-neon); padding: 8px 12px; border: 1px solid var(--cls-blue); border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }";
   html += ".algo-block:hover { border-color: var(--cls-alert); color: var(--cls-alert); background: rgba(255,51,102,0.05); }";
   html += ".algo-block.block-wait { border-color: #ffaa00; color: #ffaa00; background: rgba(255,170,0,0.05); }";
-  
-  // Слайдеры
   html += ".control-group { margin-bottom: 15px; }";
   html += "label { font-size: 0.75rem; color: var(--cls-muted); text-transform: uppercase; display: block; margin-bottom: 5px; }";
   html += ".val-badge { float: right; color: var(--cls-neon); font-weight: bold; }";
@@ -124,8 +115,6 @@ void handleRoot() {
   html += "input[type=range]:focus { outline: none; }";
   html += "input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #0c1a30; border-radius: 2px; }";
   html += "input[type=range]::-webkit-slider-thumb { height: 18px; width: 10px; border-radius: 2px; background: var(--cls-blue); cursor: pointer; -webkit-appearance: none; margin-top: -7px; box-shadow: 0 0 8px var(--cls-blue); }";
-  
-  // Инфо-блоки и мониторы
   html += ".mode-view { display: none; } .mode-view.active { display: block; }";
   html += ".info-terminal { background: rgba(0, 5, 15, 0.5); border: 1px solid rgba(0, 210, 255, 0.1); padding: 12px; border-radius: 4px; font-size: 0.8rem; line-height: 1.5; color: #a3c2db; }";
   html += ".cmd-list { margin-top: 8px; padding-left: 15px; color: var(--cls-blue); }";
@@ -134,8 +123,6 @@ void handleRoot() {
   html += "<div class='bg-circuit'></div><div class='bg-grid'></div>";
   html += "<div class='container'><h1>InMoov Hand Center v3.0</h1>";
   html += "<div id='status-bar' style='color:var(--cls-blue);'>> Инициализация терминала...</div>";
-  
-  // Блок выбора режима
   html += "<div class='panel-card'>";
   html += "<div class='section-title'>Системный режим</div>";
   html += "<button id='lockBtn' class='btn-core' onclick='unlockSystemMenu()'>[ Сменить режим работы ] 🔒</button>";
@@ -144,10 +131,7 @@ void handleRoot() {
   html += "<option value='1'>02 // Голосовое управление</option>";
   html += "<option value='2'>03 // Автономный хват датчиком HC-SR04</option>";
   html += "<option value='3'>04 // БИО-ЭМГ мышечный интерфейс</option>";
-  html += "</select></div>";
-  html += "<div id='main-workspace'>";
-
-  // Код плавно переходит в Часть 2...
+  html += "</select></div><div id='main-workspace'>";
   // РЕЖИМ 1: КОНСТРУКТОР
   html += "<div id='view-0' class='mode-view active'>";
   html += "  <div class='section-title'>Очередь алгоритма команд</div>";
@@ -198,7 +182,7 @@ void handleRoot() {
   html += "  <div class='panel-card'>";
   html += "    <div class='info-terminal'>";
   html += "      <b>АВТОНОМНЫЙ ХВАТ ДАТЧИКОМ:</b><br/>";
-  html += "      Автоматический захват при пересечении инфра-зоны ультразвука.";
+  html += "      Автоматический захват при пересечении зоны ультразвука.";
   html += "    </div>";
   html += "    <div class='panel-card' style='margin-top:15px; background:rgba(0,0,0,0.2);'>";
   html += "      <label>Порог срабатывания: <span class='val-badge'>12 см</span></label>";
@@ -221,14 +205,12 @@ void handleRoot() {
   html += "  </div>";
   html += "</div>";
 
-  html += "</div></div>"; // Конец внутренних блоков
-  // НАЧАЛО СКРИПТОВОЙ ЛОГИКИ
+  html += "</div></div>"; // Конец main-workspace и container
   html += "<script>";
   html += "const SECRET_PIN = '47781842'; let currentMode = 0; let program = []; let isBusy = false; let telemetryTimer = null;";
   html += "const fingers = ['БОЛЬШОЙ ПАЛЕЦ', 'УКАЗАТЕЛЬНЫЙ', 'СРЕДНИЙ ПАЛЕЦ', 'БЕЗЫМЯННЫЙ', 'МИЗИНЕЦ', 'ВСЯ КИСТЬ'];";
   html += "const fingers_eng = ['thumb', 'index', 'middle', 'ring', 'pinky', 'fist'];";
   
-  // 8-битный звуковой генератор (чистый системный синус IT-кодинга)
   html += "function playSound(type) {";
   html += "  try {";
   html += "    const AudioContext = window.AudioContext || window.webkitAudioContext; if(!AudioContext) return;";
@@ -242,12 +224,10 @@ void handleRoot() {
   html += "  } catch(e){}";
   html += "}";
 
-  // Слайдеры конструктора
   html += "function updateF() { document.getElementById('f-val').innerText = fingers[document.getElementById('f-slider').value]; playSound('click'); }";
   html += "function updateP() { document.getElementById('p-val').innerText = document.getElementById('p-slider').value + '°'; playSound('click'); }";
   html += "function updateW() { document.getElementById('w-val').innerText = document.getElementById('w-slider').value + ' СЕК'; playSound('click'); }";
 
-  // Меню под паролем
   html += "function unlockSystemMenu() {";
   html += "  playSound('click'); let code = prompt('ВВЕДИТЕ КЛЮЧ АДМИНИСТРАТОРА ДЛЯ СМЕНЫ РЕЖИМА:');";
   html += "  if(code === SECRET_PIN) {";
@@ -256,7 +236,6 @@ void handleRoot() {
   html += "  } else { playSound('error'); alert('ОТКАЗАНО В ДОСТУПЕ: КЛЮЧ НЕВАЛИДЕН'); }";
   html += "}";
 
-  // Обработчик переключения режимов
   html += "function handleMenuSelect(val) {";
   html += "  playSound('click'); let m = parseInt(val); activateView(m);";
   html += "  document.getElementById('modeSelect').style.display = 'none';";
@@ -264,7 +243,6 @@ void handleRoot() {
   html += "  lBtn.innerText = m === 0 ? '[ Сменить режим работы ] 🔒' : `[ АКТИВЕН РЕЖИМ 0${m+1} ] 🔐`;";
   html += "}";
 
-  // Активация вида и отправка запроса на смену режима
   html += "function activateView(modeNum) {";
   html += "  currentMode = modeNum; updateStatusBar(modeNum);";
   html += "  document.querySelectorAll('.mode-view').forEach((v, idx) => { v.classList.toggle('active', idx === modeNum); });";
@@ -276,10 +254,9 @@ void handleRoot() {
   html += "function updateStatusBar(m) {";
   html += "  const bar = document.getElementById('status-bar');";
   html += "  const labels = [ 'СТАТУС: РУЧНОЙ КОНСТРУКТОР АЛГОРИТМОВ', 'СТАТУС: ГОЛОСОВОЙ МОДУЛЬ RECOGNITION ACTIVE', 'СТАТУС: АВТОНОМНЫЙ ХВАТ (HC-SR04 МОНИТОР)', 'СТАТУС: БИО-ЭМГ ИНТЕРФЕЙС ТЕЛЕМЕТРИИ' ];";
-  html += "  bar.innerText = '> ' + (labels[m] || labels[0]);";
+  html += "  bar.innerText = '> ' + (labels[m] || labels);";
   html += "}";
 
-  // Логика Очереди Команд
   html += "function addFingerAction() {";
   html += "  playSound('add'); let f_idx = parseInt(document.getElementById('f-slider').value); let p_val = parseInt(document.getElementById('p-slider').value);";
   html += "  document.getElementById('placeholder').style.display = 'none'; let id = Date.now();";
@@ -302,7 +279,6 @@ void handleRoot() {
 
   html += "function clearQueue() { playSound('click'); program = []; document.getElementById('queue').innerHTML = '<div id=\"placeholder\" style=\"color:#445577; width:100%; margin-top:25px; font-size:0.75rem; text-align:center;\">[ СИСТЕМА ГОТОВА К ВВОДУ КОМАНД ]</div>'; }";
 
-  // Запуск скрипта конструктора (Защита от одновременных запросов пользователей)
   html += "async function runAlgorithm() {";
   html += "  if(isBusy || !program.length) return; isBusy = true; playSound('run');";
   html += "  const btn = document.getElementById('run-btn'); btn.innerText = 'ВЫПОЛНЕНИЕ ЦИКЛА...'; btn.disabled = true;";
@@ -317,7 +293,6 @@ void handleRoot() {
   html += "  isBusy = false; btn.innerText = 'ВЫПОЛНИТЬ СКРИПТ'; btn.disabled = false; clearQueue();";
   html += "}";
 
-  // Голосовой модуль (Web Speech API)
   html += "function startVoiceRecognition() {";
   html += "  window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;";
   html += "  if(!window.SpeechRecognition) { alert('Ваш браузер не поддерживает голосовое управление.'); return; }";
@@ -331,7 +306,6 @@ void handleRoot() {
   html += "  rec.onerror = () => { btn.innerText = '🎙️ Ошибка записи'; playSound('error'); };";
   html += "}";
 
-  // Опрос датчиков со стороны ESP32
   html += "async function pollSensors() {";
   html += "  try {";
   html += "    let res = await fetch('/sensor_state'); if(!res.ok) return; let data = await res.json();";
@@ -347,7 +321,6 @@ void handleRoot() {
   html += "  } catch(e) {}";
   html += "}";
 
-  // Синхронизация активного режима между всеми устройствами в сети
   html += "function startGlobalSync() {";
   html += "  setInterval(async () => {";
   html += "    try {";
@@ -361,7 +334,7 @@ void handleRoot() {
   
   server.send(200, "text/html", html);
 }
-// Обработчик принудительного переключения режима из веб-панели
+// Обработчик изменения режима работы
 void handleSetMode() {
   if (server.hasArg("m")) {
     currentMode = server.arg("m").toInt();
@@ -378,14 +351,13 @@ void handleGetMode() {
 
 // Главный обработчик выполнения физических команд (С ЗАЩИТОЙ ОТ ОДНОВРЕМЕННЫХ ПОЛЬЗОВАТЕЛЕЙ)
 void handleExecute() {
-  // Защита: проверяем временную блокировку роборуки
   if (isRobotBusy) {
     if (millis() < robotBusyUntil) {
-      server.send(200, "text/plain", "BUSY"); // Игнорируем запрос и сообщаем фронтенду
+      server.send(200, "text/plain", "BUSY"); 
       Serial.println("[SECURITY] Роборука занята. Запрос нового пользователя отклонен.");
       return;
     } else {
-      isRobotBusy = false; // Время блокировки вышло
+      isRobotBusy = false; 
     }
   }
 
@@ -397,17 +369,15 @@ void handleExecute() {
     return;
   }
 
-  // Создаем временное состояние руки для проверки безопасности
   int tempFingers[5];
   for (int i = 0; i < 5; i++) tempFingers[i] = currentFingers[i];
 
-  if (f == 5) { // Команда всей кисти
+  if (f == 5) { 
     for (int i = 0; i < 5; i++) tempFingers[i] = a;
-  } else {      // Команда конкретного пальца
+  } else {      
     tempFingers[f] = a;
   }
 
-  // Проверка безопасности Anti-Jam (активна в режимах Конструктора 0 и Голоса 1)
   if (currentMode == 0 || currentMode == 1) {
     if (!isValidFingerConfig(tempFingers) || !isValidConstructorMove(f, a, currentFingers)) {
       server.send(200, "text/plain", "ERROR: Safety Blocked");
@@ -416,17 +386,15 @@ void handleExecute() {
     }
   }
 
-  // Активируем триггер блокировки: рука резервируется под текущего пользователя на 600 мс
   isRobotBusy = true;
   robotBusyUntil = millis() + 600;
 
-  // Обновляем массив позиций и передаем команду на Arduino Uno
   if (f == 5) {
     for (int i = 0; i < 5; i++) currentFingers[i] = a;
-    sendCommandToUno(0, a); // 0 на Arduino — вся кисть
+    sendCommandToUno(0, a); 
   } else {
     currentFingers[f] = a;
-    sendCommandToUno(f + 1, a); // Сдвиг индекса 1-5 для конкретных пальцев
+    sendCommandToUno(f + 1, a); 
   }
 
   server.send(200, "text/plain", "OK");
@@ -435,11 +403,11 @@ void handleExecute() {
 // Запрос сырых данных у Arduino Uno по интерфейсу I2C
 uint16_t requestSensorFromUno(byte sensorType) {
   Wire.beginTransmission(ARDUINO_UNO_I2C_ADDR);
-  Wire.write((byte)254);   // Служебный байт чтения датчиков
-  Wire.write(sensorType); // 1 = HC-SR04, 2 = ЭМГ
+  Wire.write((byte)254);   
+  Wire.write(sensorType); 
   Wire.endTransmission();
 
-  Wire.requestFrom(ARDUINO_UNO_I2C_ADDR, 2); // Запрашиваем 2 байта (uint16_t данные)
+  Wire.requestFrom(ARDUINO_UNO_I2C_ADDR, 2); 
   if (Wire.available() >= 2) {
     byte high = Wire.read();
     byte low = Wire.read();
@@ -452,9 +420,8 @@ uint16_t requestSensorFromUno(byte sensorType) {
 void handleSensorState() {
   uint16_t distance = requestSensorFromUno(1);
   uint16_t emgRaw = requestSensorFromUno(2);
-  uint16_t distanceTimer = requestSensorFromUno(3); // Таймер обратного отсчета удержания HC-SR04
+  uint16_t distanceTimer = requestSensorFromUno(3); 
 
-  // Перевод ЭМГ в проценты (0..1023 -> 0..100%)
   int emgPct = (emgRaw * 100) / 1023;
   if (emgPct > 100) emgPct = 100;
   if (emgPct < 0) emgPct = 0;
@@ -475,13 +442,13 @@ void handleNotFound() {
   server.send(302, "text/plain", "");
 }
 
-// НАСТРОЙКА ЖЕЛЕЗА И СЕРВЕРА СЕТИ
+// НАСТРОЙКА ЖЕЛЕЗА И СЕРВЕРА СЕТИ ДЛЯ ESP32
 void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("\n\n[ESP32] Запуск управляющего ядра...");
 
-  // Инициализация I2C Master (пины 21 SDA, 22 SCL на ESP32)
+  // Инициализация I2C Master
   Wire.begin(21, 22);
   Serial.println("[I2C] Аппаратная шина запущена на GPIO 21 (SDA) и GPIO 22 (SCL)");
 
@@ -508,228 +475,5 @@ void setup() {
 void loop() {
   dnsServer.processNextRequest();
   server.handleClient();
-  delay(2); // Легкий таймаут для стабильности сетевого стека ESP
-}
-#include <Wire.h>
-#include <Adafruit_PWMServoDriver.h>
-
-#define ARDUINO_I2C_ADDR 8
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
-
-// Пины подключения периферии
-const uint8_t HC_TRIG_PIN = 2;
-const uint8_t HC_ECHO_PIN = 3;
-const uint8_t EMG_ANALOG_PIN = A0;
-
-// Константы ШИМ для сервоприводов MG996R (при частоте 60 Гц)
-#define SERVO_MIN 150 // 0 градусов (полностью разомкнут)
-#define SERVO_MAX 600 // 180 градусов (полностью согнут)
-
-// Настройки автоматики режимов
-const uint16_t HC_MAX_CM = 12;       // Дистанция срабатывания хвата (12 см)
-const int EMG_THRESHOLD = 520;       // Порог активации мышцы ЭМГ
-
-// Переменные состояния системы
-volatile uint8_t activeMode = 0;     // Активный режим (0-Конструктор, 1-Голос, 2-Сонар, 3-ЭМГ)
-volatile uint8_t requestedSensor = 0; // Какой датчик запросил ESP32
-
-// Массивы углов для плавного хода (многозадачность)
-uint8_t currentAngles[5] = {0, 0, 0, 0, 0};
-uint8_t targetAngles[5]  = {0, 0, 0, 0, 0};
-unsigned long lastServoUpdateTime = 0;
-const uint8_t SERVO_SPEED_DELAY = 4; // Задержка шага в мс (меньше = быстрее)
-
-// Глобальные переменные датчиков (обновляются асинхронно в loop)
-uint16_t currentDistanceCm = 0;
-uint16_t currentEmgRaw = 0;
-
-// Переменные таймера удержания для Режима 3 (HC-SR04)
-bool objectCaptured = false;
-unsigned long captureTimestamp = 0;
-uint16_t remainingTimerSeconds = 0;
-
-void setup() {
-  Serial.begin(115200);
-  delay(100);
-  Serial.println(F("\n\n[ARDUINO] Запуск исполнительного ядра..."));
-
-  // Настройка пинов ультразвукового датчика
-  pinMode(HC_TRIG_PIN, OUTPUT);
-  pinMode(HC_ECHO_PIN, INPUT);
-  digitalWrite(HC_TRIG_PIN, LOW);
-
-  // Настройка шины I2C в режиме Slave
-  Wire.begin(ARDUINO_I2C_ADDR);
-  Wire.onReceive(handleI2CReceive);
-  Wire.onRequest(onUnoRequest);
-
-  // Старт ШИМ-драйвера PCA9685
-  if (!pwm.begin()) {
-    Serial.println(F("[ERROR] Драйвер PCA9685 не обнаружен на шине I2C!"));
-    while (1) delay(50);
-  }
-  pwm.setPWMFreq(60);
-
-  // Начальный сброс — раскрыть ладонь
-  setAllFingersDirect(0);
-  Serial.println(F("[SYSTEM] Калибровка завершена. Ожидание сигналов Master..."));
-}
-
-void loop() {
-  // Асинхронное фоновое чтение датчиков (без блокировки прерываний)
-  measureDistanceAsync();
-  currentEmgRaw = analogRead(EMG_ANALOG_PIN);
-
-  // Реализация логики автономных режимов работы
-  if (activeMode == 2) { 
-    handleSonarAutomation(); // Автономный хват датчиком сонара
-  } else if (activeMode == 3) { 
-    handleEmgAutomation();   // Прямой био-хват от мышцы
-  }
-
-  // Неблокирующий инкремент шагов для плавной доводки сервоприводов
-  if (millis() - lastServoUpdateTime >= SERVO_SPEED_DELAY) {
-    lastServoUpdateTime = millis();
-    updateServoPositionsAsync();
-  }
-}
-
-// Измерение расстояния сонаром (не ломает прерывания I2C)
-void measureDistanceAsync() {
-  digitalWrite(HC_TRIG_PIN, LOW);
-  delayMicroseconds(2);
-  digitalWrite(HC_TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(HC_TRIG_PIN, LOW);
-
-  unsigned long duration = pulseIn(HC_ECHO_PIN, HIGH, 25000UL); // Ограничение тайм-аута в 25 мс
-  if (duration == 0) {
-    currentDistanceCm = 255; // Объект вне зоны видимости
-  } else {
-    currentDistanceCm = (duration * 0.0343f) / 2.0f;
-    if (currentDistanceCm > 255) currentDistanceCm = 255;
-  }
-}
-
-// Автоматика режима 3: Поднеси объект -> Сожми -> Подержи 3 сек -> Отпусти автоматически
-void handleSonarAutomation() {
-  if (currentDistanceCm <= HC_MAX_CM && currentDistanceCm > 0) {
-    if (!objectCaptured) {
-      objectCaptured = true;
-      captureTimestamp = millis();
-      setAllFingersTarget(180); // Даем команду на плавное сжатие в кулак
-      Serial.println(F("[AUTOMATION] Объект в зоне захвата. Хват кисти!"));
-    }
-    
-    // Рассчитываем оставшееся время удержания для отправки на сайт
-    long elapsed = millis() - captureTimestamp;
-    long remaining = 3000L - elapsed;
-    if (remaining < 0) remaining = 0;
-    remainingTimerSeconds = (uint16_t)(remaining / 1000X);
-    
-    // По истечении 3 секунд автоматически разжимаем руку, даже если объект все еще перед ней
-    if (elapsed >= 3000UL && remainingTimerSeconds == 0) {
-      setAllFingersTarget(0); // Плавное раскрытие ладони
-    }
-  } else {
-    // Если объект убрали раньше времени, или цикл удержания завершен
-    if (objectCaptured && (millis() - captureTimestamp >= 3000UL)) {
-      objectCaptured = false; 
-      remainingTimerSeconds = 0;
-    } else if (!objectCaptured) {
-      setAllFingersTarget(0);
-      remainingTimerSeconds = 0;
-    }
-  }
-}
-
-// Автоматика режима 4: Пропорциональное ЭМГ управление всей кистью
-void handleEmgAutomation() {
-  if (currentEmgRaw >= EMG_THRESHOLD) {
-    setAllFingersTarget(180);
-  } else {
-    setAllFingersTarget(0);
-  }
-}
-
-// Неблокирующее пошаговое изменение углов сервоприводов (Генератор плавности)
-void updateServoPositionsAsync() {
-  for (uint8_t i = 0; i < 5; i++) {
-    if (currentAngles[i] < targetAngles[i]) {
-      currentAngles[i]++;
-      writeToPca(i, currentAngles[i]);
-    } else if (currentAngles[i] > targetAngles[i]) {
-      currentAngles[i]--;
-      writeToPca(i, currentAngles[i]);
-    }
-  }
-}
-
-// Физическая отправка импульса в канал PCA9685
-void writeToPca(uint8_t channel, uint8_t angle) {
-  uint16_t pwmValue = map(angle, 0, 180, SERVO_MIN, SERVO_MAX);
-  pwm.setPWM(channel, 0, pwmValue);
-}
-
-// Установка целевых углов для плавного перемещения
-void setAllFingersTarget(uint8_t angle) {
-  for (int i = 0; i < 5; i++) targetAngles[i] = angle;
-}
-
-// Мгновенное жесткое позиционирование (используется только при старте калибровки)
-void setAllFingersDirect(uint8_t angle) {
-  for (int i = 0; i < 5; i++) {
-    currentAngles[i] = angle;
-    targetAngles[i] = angle;
-    writeToPca(i, angle);
-  }
-}
-
-// Прерывание чтения шины I2C: Сюда приходят команды от ESP32
-void handleI2CReceive(int byteCount) {
-  if (byteCount < 2) return;
-
-  uint8_t marker = Wire.read(); // Палец (1-5), Все (0), Служебный маркер режима (255) или Чтение датчика (254)
-  uint8_t value = Wire.read();  // Угол (0-180) или номер запрашиваемого датчика / режима
-
-  if (marker == 255) { // Служебная смена глобального режима работы
-    activeMode = value;
-    objectCaptured = false; // Сброс триггеров сонара
-    setAllFingersTarget(0);  // Раскрыть руку при смене режима
-    Serial.print(F("[I2C MASTER] Переключение режима на: "));
-    Serial.println(activeMode);
-    return;
-  }
-
-  if (marker == 254) { // Сигнал подготовки данных для отправки телеметрии
-    requestedSensor = value;
-    return;
-  }
-
-  if (marker == 0) { // Команда "Все пальцы одновременно" (например, от голоса)
-    setAllFingersTarget(value);
-  } else if (marker >= 1 && marker <= 5) { // Команда на конкретный палец (от Конструктора)
-    targetAngles[marker - 1] = value;
-  }
-}
-
-// Прерывание отправки по I2C: Вызывается мгновенно, когда ESP32 делает запрос requestFrom()
-void onUnoRequest() {
-  if (requestedSensor == 1) { // Запрос расстояния
-    uint8_t dist = (uint8_t)currentDistanceCm;
-    Wire.write(dist);
-    Wire.write(0); // Заглушка второго байта
-  } 
-  else if (requestedSensor == 2) { // Запрос сырого ЭМГ (uint16_t разбиваем на два байта)
-    Wire.write((byte)(currentEmgRaw >> 8));
-    Wire.write((byte)(currentEmgRaw & 0xFF));
-  } 
-  else if (requestedSensor == 3) { // Запрос секунд таймера сонара
-    Wire.write((byte)(remainingTimerSeconds >> 8));
-    Wire.write((byte)(remainingTimerSeconds & 0xFF));
-  }
-  else {
-    Wire.write(0);
-    Wire.write(0);
-  }
+  delay(2); 
 }
