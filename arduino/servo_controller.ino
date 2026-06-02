@@ -1,235 +1,223 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
-// ========== КОНФИГУРАЦИЯ ==========
 
-// I2C адрес Arduino (слушает команды от ESP32)
 #define ARDUINO_I2C_ADDR 8
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
-// PCA9685 объект для управления серво
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(); // <-- Исправленный объект
+// Пины подключения периферии (при сборке можно изменить на свои)
+const uint8_t HC_TRIG_PIN = 2;
+const uint8_t HC_ECHO_PIN = 3;
+const uint8_t EMG_ANALOG_PIN = A0;
 
-// Адреса пальцев на PCA9685 (каналы 0-4)
-#define THUMB 0      // Большой палец
-#define INDEX 1      // Указательный
-#define MIDDLE 2     // Средний
-#define RING 3       // Безымянный
-#define PINKY 4      // Мизинец
+// Константы ШИМ для сервоприводов MG996R (при частоте 60 Гц)
+#define SERVO_MIN 150 // 0 градусов (полностью разомкнут)
+#define SERVO_MAX 600 // 180 градусов (полностью согнут)
 
-// Диапазон PWM для серво MG996R (0-180 градусов)
-// Для PCA9685 частота обычно 60 Гц, диапазон PWM 150-600
-#define SERVO_MIN 150   // 0 градусов (разогнут)
-#define SERVO_MAX 600   // 180 градусов (согнут)
+// Настройки автоматики режимов
+const uint16_t HC_MAX_CM = 12;       // Дистанция срабатывания хвата (12 см)
+const int EMG_THRESHOLD = 520;       // Порог активации мышцы ЭМГ (калибруется под себя)
 
-// Массив текущих позиций пальцев (0-180)
-uint8_t fingerPosition[5] = {0, 0, 0, 0, 0};
+// Переменные состояния системы
+volatile uint8_t activeMode = 0;     // Активный режим (0-Конструктор, 1-Голос, 2-Сонар, 3-ЭМГ)
+volatile uint8_t requestedSensor = 0; // Какой датчик запросил ESP32
 
-// ========== ИНИЦИАЛИЗАЦИЯ ==========
+// Массивы углов для плавного хода (неблокирующая многозадачность)
+uint8_t currentAngles[5] = {0, 0, 0, 0, 0};
+uint8_t targetAngles[5]  = {0, 0, 0, 0, 0};
+unsigned long lastServoUpdateTime = 0;
+const uint8_t SERVO_SPEED_DELAY = 4; // Задержка шага в мс (меньше = быстрее)
+
+// Глобальные переменные датчиков (обновляются асинхронно в loop)
+uint16_t currentDistanceCm = 0;
+uint16_t currentEmgRaw = 0;
+
+// Переменные таймера удержания для Режима 3 (HC-SR04)
+bool objectCaptured = false;
+unsigned long captureTimestamp = 0;
+uint16_t remainingTimerSeconds = 0;
 
 void setup() {
   Serial.begin(115200);
   delay(100);
-  
-  Serial.println("\n\n[ИНИЦИАЛИЗАЦИЯ ARDUINO UNO]");
-  
-  // Инициализируем I2C как slave на адресе 8
-  Wire.begin(ARDUINO_I2C_ADDR);
-  Wire.onReceive(handleI2CData);
-  Serial.println("[OK] I2C Slave инициализирован на адресе 0x08");
-  
-  // Инициализируем PCA9685 (адрес по умолчанию 0x40)
-  if (!pwm.begin()) {
-    Serial.println("[ERROR] PCA9685 не найден! Проверь подключение.");
-    while(1) delay(100); // Зависаем, если шилда нет
-  }
-  Serial.println("[OK] PCA9685 инициализирован");
-  
-  // Устанавливаем частоту PWM 60 Гц (стандартная для серво)
-  pwm.setPWMFreq(60);
-  delay(100);
-  
-  // Устанавливаем начальные позиции (все пальцы разогнуты)
-  setAllFingers(0);
-  Serial.println("[OK] Все пальцы разогнуты (0 градусов)");
-  
-  Serial.println("[READY] Arduino готов принимать команды!\n");
-}
+  Serial.println(F("\n\n[ARDUINO] Запуск исполнительного ядра..."));
 
-// ========== ГЛАВНЫЙ ЦИКЛ ==========
+  // Настройка пинов ультразвукового датчика
+  pinMode(HC_TRIG_PIN, OUTPUT);
+  pinMode(HC_ECHO_PIN, INPUT);
+  digitalWrite(HC_TRIG_PIN, LOW);
+
+  // Настройка шины I2C в режиме Slave
+  Wire.begin(ARDUINO_I2C_ADDR);
+  Wire.onReceive(handleI2CReceive);
+  Wire.onRequest(onUnoRequest);
+
+  // Старт ШИМ-драйвера PCA9685
+  if (!pwm.begin()) {
+    Serial.println(F("[ERROR] Драйвер PCA9685 не обнаружен на шине I2C!"));
+    while (1) delay(50);
+  }
+  pwm.setPWMFreq(60);
+
+  // Начальный сброс — раскрыть ладонь
+  setAllFingersDirect(0);
+  Serial.println(F("[SYSTEM] Калибровка завершена. Ожидание сигналов Master..."));
+}
 
 void loop() {
-  delay(10);
-  // I2C обработка происходит через прерывание (handleI2CData)
-}
+  // Асинхронное фоновое чтение датчиков (без блокировки прерываний)
+  measureDistanceAsync();
+  currentEmgRaw = analogRead(EMG_ANALOG_PIN);
 
-// ========== ОБРАБОТКА I2C КОМАНД ==========
-
-void handleI2CData(int byteCount) {
-  if (byteCount < 2) {
-    Serial.println("[WARNING] Неполная команда получена");
-    return;
+  // Реализация логики автономных режимов работы
+  if (activeMode == 2) { 
+    handleSonarAutomation(); // Автономный хват датчиком сонара
+  } else if (activeMode == 3) { 
+    handleEmgAutomation();   // Прямой био-хват от мышцы
   }
-  
-  // Читаем 2 байта: палец и позиция
-  uint8_t fingerNum = Wire.read();  // 0-5 (0=кулак, 1-5=пальцы)
-  uint8_t angle = Wire.read();      // 0-180 градусов
-  
-  Serial.print("[I2C] Палец: ");
-  Serial.print(fingerNum);
-  Serial.print(" | Угол: ");
-  Serial.println(angle);
-  
-  // Обработка команды
-  if (fingerNum == 0) {
-    // Команда 0 = управление ВСЕЙ кистью
-    setAllFingers(angle);
-    Serial.println("  -> Установлена позиция для ВСЕ ПАЛЬЦЫ");
-  } 
-  else if (fingerNum >= 1 && fingerNum <= 5) {
-    // Команда 1-5 = управление конкретным пальцем
-    setFinger(fingerNum - 1, angle);
-    Serial.print("  -> Палец #");
-    Serial.print(fingerNum);
-    Serial.println(" установлен");
-  } 
-  else {
-    Serial.println("[ERROR] Неверный номер пальца!");
+
+  // Неблокирующий инкремент шагов для плавной доводки сервоприводов
+  if (millis() - lastServoUpdateTime >= SERVO_SPEED_DELAY) {
+    lastServoUpdateTime = millis();
+    updateServoPositionsAsync();
   }
 }
 
-// ========== ФУНКЦИИ УПРАВЛЕНИЯ СЕРВО ==========
+// Измерение расстояния сонаром (вынесено из прерывания I2C, чтобы не вешать шину)
+void measureDistanceAsync() {
+  digitalWrite(HC_TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(HC_TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(HC_TRIG_PIN, LOW);
 
-/**
- * Устанавливает позицию одного пальца
- * finger: 0-4 (индекс в массиве)
- * angle: 0-180 градусов
- */
-void setFinger(uint8_t finger, uint8_t angle) {
-  // Проверяем диапазон
-  if (finger > 4 || angle > 180) {
-    Serial.println("[ERROR] Неверные параметры!");
-    return;
+  unsigned long duration = pulseIn(HC_ECHO_PIN, HIGH, 25000UL); // Ограничение тайм-аута в 25 мс
+  if (duration == 0) {
+    currentDistanceCm = 255; // Объект вне зоны видимости
+  } else {
+    currentDistanceCm = (duration * 0.0343f) / 2.0f;
+    if (currentDistanceCm > 255) currentDistanceCm = 255;
   }
-  
-  // Сохраняем позицию
-  fingerPosition[finger] = angle;
-  
-  // Преобразуем градусы в PWM значение для PCA9685
-  // Формула: PWM = SERVO_MIN + (angle / 180) * (SERVO_MAX - SERVO_MIN)
+}
+
+// Автоматика режима 3: Поднеси объект -> Сожми -> Подержи 3 сек -> Отпусти автоматически
+void handleSonarAutomation() {
+  if (currentDistanceCm <= HC_MAX_CM && currentDistanceCm > 0) {
+    if (!objectCaptured) {
+      objectCaptured = true;
+      captureTimestamp = millis();
+      setAllFingersTarget(180); // Даем команду на плавное сжатие в кулак
+      Serial.println(F("[AUTOMATION] Объект в зоне захвата. Хват кисти!"));
+    }
+    
+    // Рассчитываем оставшееся время удержания для отправки на сайт (исправлено на L)
+    long elapsed = millis() - captureTimestamp;
+    long remaining = 3000L - elapsed;
+    if (remaining < 0) remaining = 0;
+    remainingTimerSeconds = (uint16_t)(remaining / 1000L);
+    
+    // По истечении 3 секунд автоматически разжимаем руку, даже если объект все еще перед ней
+    if (elapsed >= 3000UL && remainingTimerSeconds == 0) {
+      setAllFingersTarget(0); // Плавное раскрытие ладони
+    }
+  } else {
+    // Если объект убрали раньше времени, или цикл удержания завершен
+    if (objectCaptured && (millis() - captureTimestamp >= 3000UL)) {
+      objectCaptured = false; 
+      remainingTimerSeconds = 0;
+    } else if (!objectCaptured) {
+      setAllFingersTarget(0);
+      remainingTimerSeconds = 0;
+    }
+  }
+}
+
+// Автоматика режима 4: Пропорциональное ЭМГ управление всей кистью
+void handleEmgAutomation() {
+  if (currentEmgRaw >= EMG_THRESHOLD) {
+    setAllFingersTarget(180);
+  } else {
+    setAllFingersTarget(0);
+  }
+}
+
+// Неблокирующее пошаговое изменение углов сервоприводов (Генератор плавности)
+void updateServoPositionsAsync() {
+  for (uint8_t i = 0; i < 5; i++) {
+    if (currentAngles[i] < targetAngles[i]) {
+      currentAngles[i]++;
+      writeToPca(i, currentAngles[i]);
+    } else if (currentAngles[i] > targetAngles[i]) {
+      currentAngles[i]--;
+      writeToPca(i, currentAngles[i]);
+    }
+  }
+}
+
+// Физическая отправка импульса в канал PCA9685
+void writeToPca(uint8_t channel, uint8_t angle) {
   uint16_t pwmValue = map(angle, 0, 180, SERVO_MIN, SERVO_MAX);
-  
-  // Отправляем на PCA9685
-  pwm.setPWM(finger, 0, pwmValue);
-  
-  Serial.print("  Позиция обновлена: ");
-  Serial.print(angle);
-  Serial.print("° -> PWM: ");
-  Serial.println(pwmValue);
+  pwm.setPWM(channel, 0, pwmValue);
 }
 
-/**
- * Устанавливает позицию ДЛЯ ВСЕХ пальцев (кулак/ладонь)
- * angle: 0-180 градусов
- */
-void setAllFingers(uint8_t angle) {
-  if (angle > 180) {
-    Serial.println("[ERROR] Угол выше 180°!");
-    return;
-  }
-  
-  uint16_t pwmValue = map(angle, 0, 180, SERVO_MIN, SERVO_MAX);
-  
+// Установка целевых углов для плавного перемещения
+void setAllFingersTarget(uint8_t angle) {
+  for (int i = 0; i < 5; i++) targetAngles[i] = angle;
+}
+
+// Мгновенное жесткое позиционирование (используется только при старте калибровки)
+void setAllFingersDirect(uint8_t angle) {
   for (int i = 0; i < 5; i++) {
-    fingerPosition[i] = angle;
-    pwm.setPWM(i, 0, pwmValue);
+    currentAngles[i] = angle;
+    targetAngles[i] = angle;
+    writeToPca(i, angle);
   }
-  
-  Serial.print("  Все пальцы установлены на: ");
-  Serial.print(angle);
-  Serial.print("° -> PWM: ");
-  Serial.println(pwmValue);
 }
 
-/**
- * Плавное движение пальца от текущей позиции к целевой
- * finger: 0-4
- * targetAngle: целевой угол (0-180)
- * speed: скорость (мс между шагами, меньше = быстрее)
- */
-void moveFingerSmooth(uint8_t finger, uint8_t targetAngle, uint16_t speed = 30) {
-  if (finger > 4 || targetAngle > 180) return;
-  
-  uint8_t currentAngle = fingerPosition[finger];
-  
-  if (currentAngle < targetAngle) {
-    // Движение вперёд
-    for (uint8_t angle = currentAngle; angle <= targetAngle; angle++) {
-      setFinger(finger, angle);
-      delay(speed);
-    }
+// Прерывание чтения шины I2C: Сюда приходят команды от ESP32
+void handleI2CReceive(int byteCount) {
+  if (byteCount < 2) return;
+
+  uint8_t marker = Wire.read(); // Палец (1-5), Все (0), Служебный маркер режима (255) или Чтение датчика (254)
+  uint8_t value = Wire.read();  // Угол (0-180) или номер запрашиваемого датчика / режима
+
+  if (marker == 255) { // Служебная смена глобального режима работы
+    activeMode = value;
+    objectCaptured = false; // Сброс триггеров сонара
+    setAllFingersTarget(0);  // Раскрыть руку при смене режима
+    Serial.print(F("[I2C MASTER] Переключение режима на: "));
+    Serial.println(activeMode);
+    return;
+  }
+
+  if (marker == 254) { // Сигнал подготовки данных для отправки телеметрии
+    requestedSensor = value;
+    return;
+  }
+
+  if (marker == 0) { // Команда "Все пальцы одновременно" (например, от голоса)
+    setAllFingersTarget(value);
+  } else if (marker >= 1 && marker <= 5) { // Команда на конкретный палец (от Конструктора)
+    targetAngles[marker - 1] = value;
+  }
+}
+
+// Прерывание отправки по I2C: Вызывается мгновенно, когда ESP32 делает запрос requestFrom()
+void onUnoRequest() {
+  if (requestedSensor == 1) { // Запрос расстояния
+    uint8_t dist = (uint8_t)currentDistanceCm;
+    Wire.write(dist);
+    Wire.write(0); // Заглушка второго байта
   } 
-  else if (currentAngle > targetAngle) {
-    // Движение назад
-    for (uint8_t angle = currentAngle; angle >= targetAngle; angle--) {
-      setFinger(finger, angle);
-      delay(speed);
-    }
+  else if (requestedSensor == 2) { // Запрос сырого ЭМГ (uint16_t разбиваем на два байта)
+    Wire.write((byte)(currentEmgRaw >> 8));
+    Wire.write((byte)(currentEmgRaw & 0xFF));
+  } 
+  else if (requestedSensor == 3) { // Запрос секунд таймера сонара
+    Wire.write((byte)(remainingTimerSeconds >> 8));
+    Wire.write((byte)(remainingTimerSeconds & 0xFF));
   }
-}
-
-/**
- * Возвращает текущую позицию пальца
- */
-uint8_t getFingerPosition(uint8_t finger) {
-  if (finger < 5) return fingerPosition[finger];
-  return 255; // Ошибка
-}
-
-// ========== ТЕСТОВЫЕ ФУНКЦИИ (для отладки) ==========
-
-/**
- * Тестирует все пальцы поочередно
- */
-void testAllFingers() {
-  Serial.println("\n[TEST] Начинаю тестирование пальцев...");
-  
-  const char* fingerNames[] = {"БОЛЬШОЙ", "УКАЗАТЕЛЬНЫЙ", "СРЕДНИЙ", "БЕЗЫМЯННЫЙ", "МИЗИНЕЦ"};
-  
-  for (int f = 0; f < 5; f++) {
-    Serial.print("[TEST] Тестирую палец: ");
-    Serial.println(fingerNames[f]);
-    
-    // Разогнуть
-    setFinger(f, 0);
-    delay(500);
-    
-    // Согнуть
-    setFinger(f, 180);
-    delay(500);
-    
-    // Вернуть в исходное
-    setFinger(f, 0);
-    delay(300);
+  else {
+    Wire.write(0);
+    Wire.write(0);
   }
-  
-  Serial.println("[TEST] Тестирование завершено!\n");
-}
-
-/**
- * Тест волны по пальцам
- */
-void testWave() {
-  Serial.println("[TEST] Волна по пальцам...");
-  
-  for (int wave = 0; wave < 2; wave++) {
-    for (int f = 0; f < 5; f++) {
-      moveFingerSmooth(f, 90, 50);
-      delay(200);
-    }
-    for (int f = 4; f >= 0; f--) {
-      moveFingerSmooth(f, 0, 50);
-      delay(200);
-    }
-  }
-  
-  Serial.println("[TEST] Волна завершена!\n");
 }
