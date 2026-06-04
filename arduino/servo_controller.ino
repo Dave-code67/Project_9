@@ -105,26 +105,32 @@ void handleSonarAutomation() {
     if (!objectCaptured) {
       objectCaptured = true;
       captureTimestamp = millis();
-      setAllFingersTarget(180); // Даем команду на плавное сжатие в кулак
+      setAllFingersTarget(180);
       Serial.println(F("[AUTOMATION] Объект в зоне захвата. Хват кисти!"));
     }
-    
-    // Рассчитываем оставшееся время удержания для отправки на сайт (исправлено на L)
+
     long elapsed = millis() - captureTimestamp;
     long remaining = 3000L - elapsed;
     if (remaining < 0) remaining = 0;
     remainingTimerSeconds = (uint16_t)(remaining / 1000L);
-    
-    // По истечении 3 секунд автоматически разжимаем руку, даже если объект все еще перед ней
-    if (elapsed >= 3000UL && remainingTimerSeconds == 0) {
-      setAllFingersTarget(0); // Плавное раскрытие ладони
+
+    if (elapsed >= 3000UL) {
+      setAllFingersTarget(0);
+      // ✅ Сбрасываем флаг ЗДЕСЬ, а не в ветке else
+      objectCaptured = false;
+      remainingTimerSeconds = 0;
+      Serial.println(F("[AUTOMATION] Таймер истёк. Рука разжата, готова к новому захвату."));
     }
   } else {
-    // Если объект убрали раньше времени, или цикл удержания завершен
-    if (objectCaptured && (millis() - captureTimestamp >= 3000UL)) {
-      objectCaptured = false; 
-      remainingTimerSeconds = 0;
-    } else if (!objectCaptured) {
+    // Объект убрали досрочно
+    if (objectCaptured) {
+      long elapsed = millis() - captureTimestamp;
+      if (elapsed >= 3000UL) {
+        objectCaptured = false;
+        remainingTimerSeconds = 0;
+      }
+      // иначе — держим, объект убрали раньше времени, ждём таймер
+    } else {
       setAllFingersTarget(0);
       remainingTimerSeconds = 0;
     }
